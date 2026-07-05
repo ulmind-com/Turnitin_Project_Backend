@@ -40,13 +40,31 @@ async def upload_document(
             detail="Only PDF and DOCX files are supported",
         )
 
-    # Read file
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File size exceeds 10MB limit",
-        )
+    import io
+
+    # Stream the incoming file in manageable 1MB chunks to prevent memory exhaustion (DoS/OOM)
+    chunk_size = 1024 * 1024  # 1MB
+    accumulated_bytes = io.BytesIO()
+    total_bytes_read = 0
+
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            
+            total_bytes_read += len(chunk)
+            if total_bytes_read > MAX_FILE_SIZE:
+                accumulated_bytes.close()
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail="File size exceeds 10MB limit",
+                )
+            accumulated_bytes.write(chunk)
+        
+        file_bytes = accumulated_bytes.getvalue()
+    finally:
+        accumulated_bytes.close()
 
     # Parse document text
     file_type = "pdf" if file_ext == "pdf" else "docx"

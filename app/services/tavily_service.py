@@ -1,11 +1,11 @@
-from tavily import TavilyClient
+from tavily import AsyncTavilyClient
 from app.config import settings
 from typing import Optional
 
 
-def get_tavily_client() -> TavilyClient:
-    """Get a Tavily client instance."""
-    return TavilyClient(api_key=settings.TAVILY_API_KEY)
+def get_tavily_client() -> AsyncTavilyClient:
+    """Get an AsyncTavilyClient instance."""
+    return AsyncTavilyClient(api_key=settings.TAVILY_API_KEY)
 
 
 async def search_web_for_chunk(chunk_text: str, key_phrases: list[str]) -> list[dict]:
@@ -32,7 +32,7 @@ async def search_web_for_chunk(chunk_text: str, key_phrases: list[str]) -> list[
         try:
             # Use the phrase as a search query, wrapped in quotes for exact match
             query = f'"{phrase}"'
-            response = client.search(
+            response = await client.search(
                 query=query,
                 search_depth="basic",
                 max_results=3,

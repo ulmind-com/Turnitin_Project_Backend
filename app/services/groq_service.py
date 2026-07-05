@@ -1,11 +1,11 @@
 import json
-from groq import Groq
+from groq import AsyncGroq
 from app.config import settings
 
 
-def get_groq_client() -> Groq:
-    """Get a Groq client instance."""
-    return Groq(api_key=settings.GROQ_API_KEY)
+def get_groq_client() -> AsyncGroq:
+    """Get an AsyncGroq client instance."""
+    return AsyncGroq(api_key=settings.GROQ_API_KEY)
 
 
 async def analyze_plagiarism(
@@ -68,7 +68,7 @@ RESPOND IN THIS EXACT JSON FORMAT ONLY (no extra text):
 }}"""
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": "You are a plagiarism detection engine. Respond ONLY with valid JSON."},
@@ -140,7 +140,7 @@ RESPOND IN THIS EXACT JSON FORMAT ONLY (no extra text):
 }}"""
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": "You are an AI writing detection engine. Respond ONLY with valid JSON."},
