@@ -315,3 +315,50 @@ async def get_document_report(
             else []
         ),
     }
+
+
+# ── GET /{document_id}/download-report ──────────────────────────────────────
+
+
+@router.get("/{document_id}/download-report")
+async def download_document_report(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate and stream a Turnitin-style PDF originality report.
+    Only available if both AI and plagiarism checks have completed.
+    """
+    doc = await ScanDocument.get(document_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if (
+        doc.ai_scan_status != ScanStatus.COMPLETED
+        or doc.plagiarism_scan_status != ScanStatus.COMPLETED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot download PDF report until both AI and plagiarism scans are completed successfully.",
+        )
+
+    try:
+        from app.utils.report_generator import build_report_pdf
+        pdf_bytes = build_report_pdf(doc)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating PDF report: {str(e)}",
+        )
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    report_filename = f"Originality_Report_{safe_filename.rsplit('.', 1)[0]}.pdf"
+
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{report_filename}"'
+        },
+    )

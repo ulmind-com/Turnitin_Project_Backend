@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>ScanVault Analysis Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                font-size: 8pt;
+                color: #7f8c8d;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #2c3e50;
+            line-height: 1.6;
+            font-size: 10pt;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .header {
+            border-bottom: 2px solid #34495e;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #34495e;
+        }
+        .logo span {
+            color: #e74c3c;
+        }
+        .meta-info {
+            float: right;
+            text-align: right;
+            font-size: 9pt;
+            color: #7f8c8d;
+        }
+        .cover-page {
+            page-break-after: always;
+            padding-top: 50px;
+        }
+        .cover-title {
+            font-size: 28pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .cover-subtitle {
+            font-size: 14pt;
+            color: #7f8c8d;
+            margin-bottom: 50px;
+        }
+        .metrics-container {
+            margin-bottom: 40px;
+        }
+        .metric-box {
+            display: inline-block;
+            width: 45%;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-right: 5%;
+        }
+        .metric-box.plagiarism {
+            background-color: #fdf2f2;
+            border: 1px solid #f8d7da;
+        }
+        .metric-box.ai {
+            background-color: #f0f7ff;
+            border: 1px solid #cce5ff;
+        }
+        .metric-val {
+            font-size: 36pt;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .metric-box.plagiarism .metric-val {
+            color: #c0392b;
+        }
+        .metric-box.ai .metric-val {
+            color: #2980b9;
+        }
+        .metric-label {
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #7f8c8d;
+            font-weight: bold;
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 40px;
+            font-size: 9pt;
+        }
+        .details-table th, .details-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .details-table th {
+            background-color: #f8f9fa;
+            color: #34495e;
+            font-weight: bold;
+        }
+        .section-title {
+            border-bottom: 1px solid #bdc3c7;
+            padding-bottom: 5px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 14pt;
+            font-weight: bold;
+        }
+        .document-body {
+            background-color: #ffffff;
+            padding: 15px;
+            font-size: 11pt;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+        .plagiarism-highlight {
+            background-color: #ffcccc;
+            border-bottom: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .ai-highlight {
+            background-color: #cce5ff;
+            border-bottom: 1px solid #b8daff;
+            color: #004085;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- COVER PAGE -->
+    <div class="cover-page">
+        <div class="header">
+            <div class="meta-info">
+                <strong>Report Generated:</strong> {{ scanned_at }}<br>
+                <strong>Document ID:</strong> {{ document_id }}
+            </div>
+            <div class="logo">Scan<span>Vault</span></div>
+        </div>
+
+        <div class="cover-title">Originality Report</div>
+        <div class="cover-subtitle">Plagiarism and AI Writing Analysis</div>
+
+        <table style="width: 100%; margin-top: 50px;">
+            <tr>
+                <td style="width: 50%; padding-right: 15px; vertical-align: top;">
+                    <div class="metric-box plagiarism">
+                        <div class="metric-val">{{ overall_plagiarism_score }}%</div>
+                        <div class="metric-label">Plagiarism Score</div>
+                    </div>
+                </td>
+                <td style="width: 50%; padding-left: 15px; vertical-align: top;">
+                    <div class="metric-box ai">
+                        <div class="metric-val">{{ overall_ai_score }}%</div>
+                        <div class="metric-label">AI Writing Score</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <div style="margin-top: 50px;">
+            <h3>Document Details</h3>
+            <table class="details-table">
+                <tr>
+                    <th style="width: 30%;">File Name</th>
+                    <td>{{ file_name }}</td>
+                </tr>
+                <tr>
+                    <th>File Type</th>
+                    <td>{{ file_type | upper }}</td>
+                </tr>
+                <tr>
+                    <th>Plagiarism Summary</th>
+                    <td>{{ plagiarism_summary or 'No plagiarism check performed.' }}</td>
+                </tr>
+                <tr>
+                    <th>AI Detection Summary</th>
+                    <td>{{ ai_summary or 'No AI check performed.' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- DOCUMENT CONTENT PAGE -->
+    <div>
+        <div class="header">
+            <div class="logo" style="font-size: 14pt;">Scan<span>Vault</span> <span style="font-size: 10pt; font-weight: normal; color: #7f8c8d;">- Originality Submission Text</span></div>
+        </div>
+        
+        <div class="section-title">Submitted Document Text</div>
+        <div style="margin-bottom: 20px; font-size: 9pt; color: #7f8c8d;">
+            <span style="background-color: #ffcccc; padding: 2px 6px; border-radius: 3px; color: #721c24; margin-right: 15px;"><strong>■</strong> Plagiarized Content</span>
+            <span style="background-color: #cce5ff; padding: 2px 6px; border-radius: 3px; color: #004085;"><strong>■</strong> AI-Generated Content</span>
+        </div>
+
+        <div class="document-body">
+            {{ highlighted_text | safe }}
+        </div>
+    </div>
+
+</body>
+</html>
