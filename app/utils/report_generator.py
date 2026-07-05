@@ -204,6 +204,8 @@ def _prepare_matched_sources_for_template(doc: ScanDocument) -> list[dict]:
 
 def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
     """Build a Turnitin-style Plagiarism Similarity Report PDF."""
+    from markupsafe import Markup
+
     highlighted_html = _generate_plagiarism_highlighted_html(doc)
     match_groups = _compute_match_groups(doc)
     source_breakdown = _compute_source_breakdown(doc)
@@ -221,9 +223,9 @@ def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
     html = template.render(
         document_id=str(doc.id),
         file_name=doc.original_file_name,
-        file_type=doc.file_type,
+        file_type=doc.file_type.upper(),
         scanned_at=scanned_at,
-        page_count=metadata.get("page_count", "—"),
+        page_count=metadata.get("page_count", "-"),
         word_count=f"{metadata.get('token_count', 0):,}",
         char_count=f"{metadata.get('character_count', 0):,}",
         overall_plagiarism_score=round(doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0, 1),
@@ -231,7 +233,7 @@ def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
         integrity_flags=doc.integrity_flags or [],
         integrity_flag_count=len(doc.integrity_flags) if doc.integrity_flags else 0,
         matched_sources=matched_sources,
-        highlighted_text=highlighted_html,
+        highlighted_text=Markup(highlighted_html),
         **match_groups,
         **source_breakdown,
     )
@@ -337,6 +339,8 @@ def _generate_ai_highlighted_html(doc: ScanDocument) -> str:
 
 def build_ai_report_pdf(doc: ScanDocument) -> bytes:
     """Build a Turnitin-style AI Writing Detection Report PDF."""
+    from markupsafe import Markup
+
     highlighted_html = _generate_ai_highlighted_html(doc)
 
     ai_score = doc.ai_result.ai_score if doc.ai_result else 0
@@ -370,17 +374,21 @@ def build_ai_report_pdf(doc: ScanDocument) -> bytes:
     html = template.render(
         document_id=str(doc.id),
         file_name=doc.original_file_name,
-        file_type=doc.file_type,
+        file_type=doc.file_type.upper(),
         scanned_at=scanned_at,
-        page_count=metadata.get("page_count", "—"),
+        page_count=metadata.get("page_count", "-"),
         word_count=f"{metadata.get('token_count', 0):,}",
         char_count=f"{metadata.get('character_count', 0):,}",
         overall_ai_score=round(ai_score, 1),
         caution_level=caution_level,
         ai_generated_pct=ai_generated_pct,
         ai_paraphrased_pct=ai_paraphrased_pct,
-        heuristics=heuristics if heuristics else None,
-        highlighted_text=highlighted_html,
+        # Pass heuristics as flat variables
+        burstiness=heuristics.get("burstiness"),
+        type_token_ratio=heuristics.get("type_token_ratio"),
+        avg_sentence_length=heuristics.get("avg_sentence_length"),
+        ai_phrase_density=heuristics.get("ai_phrase_density"),
+        highlighted_text=Markup(highlighted_html),
     )
 
     return _html_to_pdf(html)
@@ -475,6 +483,8 @@ def _generate_combined_highlighted_html(doc: ScanDocument) -> str:
 
 def build_report_pdf(doc: ScanDocument) -> bytes:
     """Build the combined originality report (backward compat)."""
+    from markupsafe import Markup
+
     highlighted_html = _generate_combined_highlighted_html(doc)
 
     scanned_at = (
@@ -492,7 +502,7 @@ def build_report_pdf(doc: ScanDocument) -> bytes:
         overall_ai_score=round(doc.ai_result.ai_score if doc.ai_result else 0, 1),
         plagiarism_summary=doc.plagiarism_result.summary if doc.plagiarism_result else None,
         ai_summary=doc.ai_result.summary if doc.ai_result else None,
-        highlighted_text=highlighted_html,
+        highlighted_text=Markup(highlighted_html),
         scanned_at=scanned_at,
     )
 
