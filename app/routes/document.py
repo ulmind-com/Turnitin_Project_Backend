@@ -15,6 +15,8 @@ from app.schemas.document import (
 from app.services.parser_service import parse_document
 from app.utils.dependencies import get_current_user
 from app.services.scanner_service import analyze_ai_job, analyze_plagiarism_job
+from app.utils.text_processor import clean_text, tokenize_text, filter_bibliography_and_quotes
+from app.utils.integrity_checker import check_integrity
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -70,14 +72,24 @@ async def upload_document(
     finally:
         buffer.close()
 
-    file_type = "pdf" if file_ext == "pdf" else "docx"
-    extracted_text = await parse_document(file_bytes, file_type)
+    raw_extracted_text, page_count = await parse_document(file_bytes, file_type)
 
-    if not extracted_text or len(extracted_text.strip()) < 20:
+    if not raw_extracted_text or len(raw_extracted_text.strip()) < 20:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not extract meaningful text from the document.",
         )
+
+    # Clean and process text
+    integrity_flags = check_integrity(raw_extracted_text)
+    cleaned_text, tokens = filter_bibliography_and_quotes(raw_extracted_text)
+
+    metadata = {
+        "file_size": len(file_bytes),
+        "page_count": page_count,
+        "character_count": len(raw_extracted_text),
+        "token_count": len(tokens),
+    }
 
     # Deduct credit + insert document atomically to prevent race conditions
     db_client = User.get_motor_collection().database.client
@@ -88,7 +100,9 @@ async def upload_document(
                 user_id=str(current_user.id),
                 original_file_name=filename,
                 file_type=file_type,
-                extracted_text=extracted_text,
+                extracted_text=cleaned_text,
+                integrity_flags=integrity_flags,
+                metadata=metadata,
                 # Statuses are None until the caller explicitly triggers each engine
                 ai_scan_status=None,
                 plagiarism_scan_status=None,
@@ -248,6 +262,8 @@ async def get_document(
         ),
         ai_result=doc.ai_result.model_dump() if doc.ai_result else None,
         plagiarism_result=doc.plagiarism_result.model_dump() if doc.plagiarism_result else None,
+        integrity_flags=doc.integrity_flags,
+        metadata=doc.metadata,
         scanned_at=doc.scanned_at.isoformat() if doc.scanned_at else None,
         created_at=doc.created_at.isoformat(),
     )

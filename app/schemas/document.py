@@ -23,6 +23,8 @@ class DocumentDetailResponse(BaseModel):
     plagiarism_scan_status: str | None = None
     ai_result: dict | None = None
     plagiarism_result: dict | None = None
+    integrity_flags: list[dict] = []
+    metadata: dict = {}
     scanned_at: str | None = None
     created_at: str
 
