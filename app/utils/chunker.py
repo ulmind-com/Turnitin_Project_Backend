@@ -2,22 +2,21 @@ import re
 from typing import Optional
 
 
+# Known AI filler phrases used as an AI-probability signal
+_AI_PHRASES = [
+    "it's important to note", "it is important to note", "in conclusion",
+    "furthermore", "delve into", "it is worth noting", "in summary",
+    "to summarize", "moreover", "additionally", "in this context",
+    "in the realm of", "is crucial", "when it comes to",
+    "it's worth noting", "having said that", "on the other hand",
+    "this is because", "needless to say", "it goes without saying",
+]
+
+
 def split_into_sentences(text: str) -> list[str]:
-    """
-    Split text into sentences using regex.
-    Handles common abbreviations and edge cases.
-    """
-    # Clean up whitespace
     text = re.sub(r"\s+", " ", text.strip())
-
-    # Split on sentence-ending punctuation followed by space + uppercase
-    # or end of string
     sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
-
-    # Filter out very short fragments (< 10 chars)
-    sentences = [s.strip() for s in sentences if len(s.strip()) >= 10]
-
-    return sentences
+    return [s.strip() for s in sentences if len(s.strip()) >= 10]
 
 
 def create_overlapping_chunks(
@@ -26,31 +25,16 @@ def create_overlapping_chunks(
     overlap_sentences: int = 1,
 ) -> list[dict]:
     """
-    Split text into overlapping sentence-based chunks.
-
-    Args:
-        text: The full document text.
-        sentences_per_chunk: Number of sentences per chunk (3-5 recommended).
-        overlap_sentences: Number of overlapping sentences between chunks.
-
-    Returns:
-        List of dicts with 'index', 'text', 'start_sentence', 'end_sentence'.
+    Small sentence-based overlapping chunks for precise web search queries.
+    Used by the plagiarism engine (Tavily + similarity scoring).
     """
     sentences = split_into_sentences(text)
-
     if not sentences:
         return []
 
-    # If text is very short, return as single chunk
     if len(sentences) <= sentences_per_chunk:
-        return [
-            {
-                "index": 0,
-                "text": " ".join(sentences),
-                "start_sentence": 0,
-                "end_sentence": len(sentences) - 1,
-            }
-        ]
+        return [{"index": 0, "text": " ".join(sentences),
+                 "start_sentence": 0, "end_sentence": len(sentences) - 1}]
 
     chunks = []
     step = max(1, sentences_per_chunk - overlap_sentences)
@@ -58,50 +42,128 @@ def create_overlapping_chunks(
 
     for i in range(0, len(sentences), step):
         end = min(i + sentences_per_chunk, len(sentences))
-        chunk_sentences = sentences[i:end]
-        chunk_text = " ".join(chunk_sentences)
-
-        if len(chunk_text.strip()) >= 20:  # skip tiny chunks
-            chunks.append(
-                {
-                    "index": chunk_index,
-                    "text": chunk_text,
-                    "start_sentence": i,
-                    "end_sentence": end - 1,
-                }
-            )
+        chunk_text = " ".join(sentences[i:end])
+        if len(chunk_text.strip()) >= 20:
+            chunks.append({
+                "index": chunk_index,
+                "text": chunk_text,
+                "start_sentence": i,
+                "end_sentence": end - 1,
+            })
             chunk_index += 1
-
-        # Stop if we've reached the end
         if end >= len(sentences):
             break
 
     return chunks
 
 
+def create_large_window_chunks(
+    text: str,
+    words_per_chunk: int = 800,
+    overlap_words: int = 100,
+) -> list[dict]:
+    """
+    Large word-count-based chunks for full-context AI detection.
+
+    800-word windows give the LLM enough text to evaluate consistent sentence
+    rhythm, vocabulary monotony, and structural patterns — signals that are
+    invisible in 4-sentence micro-chunks.
+    """
+    words = text.split()
+    if not words:
+        return []
+
+    if len(words) <= words_per_chunk:
+        return [{"index": 0, "text": text, "word_count": len(words)}]
+
+    chunks = []
+    step = max(1, words_per_chunk - overlap_words)
+    chunk_index = 0
+
+    for i in range(0, len(words), step):
+        end = min(i + words_per_chunk, len(words))
+        chunk_text = " ".join(words[i:end])
+        if len(chunk_text.strip()) >= 100:
+            chunks.append({
+                "index": chunk_index,
+                "text": chunk_text,
+                "word_count": end - i,
+            })
+            chunk_index += 1
+        if end >= len(words):
+            break
+
+    return chunks
+
+
+def compute_text_heuristics(text: str) -> dict:
+    """
+    Compute objective statistical proxies for perplexity and burstiness.
+
+    These metrics are passed verbatim into the Groq prompt so the LLM can
+    anchor its score on measurable evidence rather than pure intuition.
+
+    Burstiness (B):
+        Coefficient of Variation of sentence word-counts.
+        Human baseline: B ≥ 0.50.  AI-generated text typically: B < 0.30.
+
+    Type-Token Ratio (TTR):
+        Unique words / total words — measures vocabulary diversity.
+        Human baseline: TTR ≥ 0.60.  AI-generated text typically: TTR < 0.50.
+
+    AI Phrase Density:
+        Count of known AI filler phrases per 100 words.
+    """
+    sentences = split_into_sentences(text)
+    words = re.findall(r"\b\w+\b", text.lower())
+
+    # Burstiness
+    if len(sentences) >= 2:
+        lengths = [len(re.findall(r"\b\w+\b", s)) for s in sentences]
+        mean_len = sum(lengths) / len(lengths)
+        if mean_len > 0:
+            variance = sum((l - mean_len) ** 2 for l in lengths) / len(lengths)
+            burstiness = (variance ** 0.5) / mean_len
+        else:
+            burstiness = 0.0
+        avg_sentence_len = mean_len
+    else:
+        burstiness = 0.0
+        avg_sentence_len = float(len(words))
+
+    # Type-Token Ratio
+    ttr = len(set(words)) / len(words) if words else 0.0
+
+    # AI phrase density
+    text_lower = text.lower()
+    ai_phrase_count = sum(1 for p in _AI_PHRASES if p in text_lower)
+    ai_phrase_density = ai_phrase_count / max(len(words) / 100.0, 1.0)
+
+    return {
+        "burstiness": round(burstiness, 4),
+        "type_token_ratio": round(ttr, 4),
+        "avg_sentence_length": round(avg_sentence_len, 2),
+        "ai_phrase_density": round(ai_phrase_density, 4),
+        "sentence_count": len(sentences),
+        "word_count": len(words),
+    }
+
+
 def extract_key_phrases(text: str, max_phrases: int = 3) -> list[str]:
-    """
-    Extract key phrases from a chunk of text for web search queries.
-    Uses a simple heuristic: longest unique n-grams that aren't too common.
-    """
-    # Clean text
+    """Extract short key phrases for Tavily web search queries."""
     clean = re.sub(r"[^\w\s]", "", text.lower())
     words = clean.split()
 
     if len(words) < 4:
         return [text[:100]]
 
-    # Extract 4-6 word phrases from beginning, middle, and end
     phrases = []
     phrase_len = min(6, len(words) // 2)
 
     if phrase_len >= 3:
-        # Beginning
         phrases.append(" ".join(words[:phrase_len]))
-        # Middle
         mid = len(words) // 2
-        phrases.append(" ".join(words[mid : mid + phrase_len]))
-        # End
+        phrases.append(" ".join(words[mid: mid + phrase_len]))
         if len(words) > phrase_len * 2:
             phrases.append(" ".join(words[-phrase_len:]))
 

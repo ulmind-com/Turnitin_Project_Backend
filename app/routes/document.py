@@ -1,136 +1,229 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from beanie import PydanticObjectId
+
 from app.models.user import User
 from app.models.document import ScanDocument, ScanStatus
-from app.schemas.document import DocumentResponse, DocumentDetailResponse, DocumentListResponse
+from app.schemas.document import (
+    DocumentResponse,
+    DocumentDetailResponse,
+    DocumentListResponse,
+    UploadResponse,
+    AnalysisQueuedResponse,
+)
 from app.services.parser_service import parse_document
-from app.services.scanner_service import scan_document
-from app.utils.dependencies import get_current_user
+from app.utils.dependencies import get_current_user, get_arq_pool
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
-# Max file size: 10MB
-MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
-@router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+# ── POST /upload ────────────────────────────────────────────────────────────
+
+
+@router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Upload a PDF or DOCX file for plagiarism and AI detection scanning.
-    Deducts 1 credit from the user's balance. Scan runs in the background.
+    Stream-ingest a PDF or DOCX, parse its text, deduct 1 credit (ACID
+    transaction), and persist the document record.
+
+    Analysis is NOT triggered automatically. Call the dedicated
+    `/analyze/ai` and `/analyze/plagiarism` endpoints separately.
+    Returns the `document_id` needed for those calls.
     """
-    # Check credits
     if current_user.credits <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Insufficient credits. Please purchase a plan to continue scanning.",
         )
 
-    # Validate file type
     filename = file.filename or ""
     file_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    allowed_extensions = {"pdf", "docx"}
-
-    if file_ext not in allowed_extensions:
+    if file_ext not in {"pdf", "docx"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF and DOCX files are supported",
+            detail="Only PDF and DOCX files are supported.",
         )
 
-    import io
-
-    # Stream the incoming file in manageable 1MB chunks to prevent memory exhaustion (DoS/OOM)
-    chunk_size = 1024 * 1024  # 1MB
-    accumulated_bytes = io.BytesIO()
-    total_bytes_read = 0
-
+    # Buffered streaming — prevents OOM on large uploads
+    buffer = io.BytesIO()
+    total_bytes = 0
     try:
         while True:
-            chunk = await file.read(chunk_size)
+            chunk = await file.read(1024 * 1024)  # 1 MB per read
             if not chunk:
                 break
-            
-            total_bytes_read += len(chunk)
-            if total_bytes_read > MAX_FILE_SIZE:
-                accumulated_bytes.close()
+            total_bytes += len(chunk)
+            if total_bytes > MAX_FILE_SIZE:
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail="File size exceeds 10MB limit",
+                    detail="File size exceeds the 10 MB limit.",
                 )
-            accumulated_bytes.write(chunk)
-        
-        file_bytes = accumulated_bytes.getvalue()
+            buffer.write(chunk)
+        file_bytes = buffer.getvalue()
     finally:
-        accumulated_bytes.close()
+        buffer.close()
 
-    # Parse document text
     file_type = "pdf" if file_ext == "pdf" else "docx"
     extracted_text = await parse_document(file_bytes, file_type)
 
     if not extracted_text or len(extracted_text.strip()) < 20:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Could not extract meaningful text from the document",
+            detail="Could not extract meaningful text from the document.",
         )
 
-    # Deduct credit and insert document within a database transaction to ensure atomicity
-    client = User.get_motor_collection().database.client
-    async with client.start_session() as session:
+    # Deduct credit + insert document atomically to prevent race conditions
+    db_client = User.get_motor_collection().database.client
+    async with db_client.start_session() as session:
         async with session.start_transaction():
-            # Deduct 1 credit atomically on the database level to prevent race conditions
             await current_user.update({"$inc": {"credits": -1}}, session=session)
-
-            # Create document record
             doc = ScanDocument(
                 user_id=str(current_user.id),
                 original_file_name=filename,
                 file_type=file_type,
                 extracted_text=extracted_text,
-                scan_status=ScanStatus.QUEUED,
+                # Statuses are None until the caller explicitly triggers each engine
+                ai_scan_status=None,
+                plagiarism_scan_status=None,
             )
             await doc.insert(session=session)
 
-    # Start scan in background (only if transaction committed successfully)
-    background_tasks.add_task(scan_document, doc)
-
-    return DocumentResponse(
-        id=str(doc.id),
+    return UploadResponse(
+        document_id=str(doc.id),
         original_file_name=doc.original_file_name,
         file_type=doc.file_type,
-        scan_status=doc.scan_status,
-        plagiarism_score=0,
-        ai_score=0,
-        scanned_at=None,
         created_at=doc.created_at.isoformat(),
+        message=(
+            "Document uploaded successfully. "
+            "Trigger AI analysis via POST /analyze/ai and "
+            "plagiarism analysis via POST /analyze/plagiarism."
+        ),
     )
+
+
+# ── POST /{doc_id}/analyze/ai ───────────────────────────────────────────────
+
+
+@router.post(
+    "/{doc_id}/analyze/ai",
+    response_model=AnalysisQueuedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def trigger_ai_analysis(
+    doc_id: str,
+    arq_pool=Depends(get_arq_pool),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Enqueue the AI detection background job for the given document.
+
+    Idempotency: returns 409 if the job is already queued or processing.
+    Re-triggers are allowed after `completed` or `failed`.
+    """
+    doc = await ScanDocument.get(doc_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if doc.ai_scan_status in (ScanStatus.QUEUED, ScanStatus.PROCESSING):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"AI analysis is already {doc.ai_scan_status.value}.",
+        )
+
+    job = await arq_pool.enqueue_job("analyze_ai_job", doc_id)
+
+    # Mark queued immediately so duplicate triggers are blocked
+    await doc.update({"$set": {"ai_scan_status": ScanStatus.QUEUED.value}})
+
+    return AnalysisQueuedResponse(
+        document_id=doc_id,
+        job_id=job.job_id,
+        status=ScanStatus.QUEUED.value,
+        message="AI detection job queued. Poll GET /{doc_id} for status updates.",
+    )
+
+
+# ── POST /{doc_id}/analyze/plagiarism ──────────────────────────────────────
+
+
+@router.post(
+    "/{doc_id}/analyze/plagiarism",
+    response_model=AnalysisQueuedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def trigger_plagiarism_analysis(
+    doc_id: str,
+    arq_pool=Depends(get_arq_pool),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Enqueue the plagiarism detection background job for the given document.
+
+    Idempotency: returns 409 if the job is already queued or processing.
+    Re-triggers are allowed after `completed` or `failed`.
+    """
+    doc = await ScanDocument.get(doc_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if doc.plagiarism_scan_status in (ScanStatus.QUEUED, ScanStatus.PROCESSING):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Plagiarism analysis is already {doc.plagiarism_scan_status.value}.",
+        )
+
+    job = await arq_pool.enqueue_job("analyze_plagiarism_job", doc_id)
+
+    await doc.update({"$set": {"plagiarism_scan_status": ScanStatus.QUEUED.value}})
+
+    return AnalysisQueuedResponse(
+        document_id=doc_id,
+        job_id=job.job_id,
+        status=ScanStatus.QUEUED.value,
+        message="Plagiarism detection job queued. Poll GET /{doc_id} for status updates.",
+    )
+
+
+# ── GET / (list) ────────────────────────────────────────────────────────────
 
 
 @router.get("", response_model=DocumentListResponse)
 async def list_documents(current_user: User = Depends(get_current_user)):
-    """List all documents uploaded by the current user."""
+    """List all documents uploaded by the current user, newest first."""
     docs = await ScanDocument.find(
         ScanDocument.user_id == str(current_user.id),
     ).sort("-created_at").to_list()
 
-    documents = []
-    for doc in docs:
-        documents.append(
+    return DocumentListResponse(
+        documents=[
             DocumentResponse(
                 id=str(doc.id),
                 original_file_name=doc.original_file_name,
                 file_type=doc.file_type,
-                scan_status=doc.scan_status,
-                plagiarism_score=doc.scan_result.plagiarism_score if doc.scan_result else 0,
-                ai_score=doc.scan_result.ai_score if doc.scan_result else 0,
+                ai_scan_status=doc.ai_scan_status.value if doc.ai_scan_status else None,
+                plagiarism_scan_status=(
+                    doc.plagiarism_scan_status.value if doc.plagiarism_scan_status else None
+                ),
+                plagiarism_score=(
+                    doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0.0
+                ),
+                ai_score=doc.ai_result.ai_score if doc.ai_result else 0.0,
                 scanned_at=doc.scanned_at.isoformat() if doc.scanned_at else None,
                 created_at=doc.created_at.isoformat(),
             )
-        )
+            for doc in docs
+        ],
+        total=len(docs),
+    )
 
-    return DocumentListResponse(documents=documents, total=len(documents))
+
+# ── GET /{document_id} ──────────────────────────────────────────────────────
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
@@ -138,24 +231,28 @@ async def get_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Get full document details including scan results."""
+    """Full document details including both analysis results (partial results are returned as they complete)."""
     doc = await ScanDocument.get(document_id)
     if not doc or doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
     return DocumentDetailResponse(
         id=str(doc.id),
         original_file_name=doc.original_file_name,
         file_type=doc.file_type,
         extracted_text=doc.extracted_text,
-        scan_status=doc.scan_status,
-        scan_result=doc.scan_result.model_dump() if doc.scan_result else None,
+        ai_scan_status=doc.ai_scan_status.value if doc.ai_scan_status else None,
+        plagiarism_scan_status=(
+            doc.plagiarism_scan_status.value if doc.plagiarism_scan_status else None
+        ),
+        ai_result=doc.ai_result.model_dump() if doc.ai_result else None,
+        plagiarism_result=doc.plagiarism_result.model_dump() if doc.plagiarism_result else None,
         scanned_at=doc.scanned_at.isoformat() if doc.scanned_at else None,
         created_at=doc.created_at.isoformat(),
     )
+
+
+# ── GET /{document_id}/report ───────────────────────────────────────────────
 
 
 @router.get("/{document_id}/report")
@@ -164,37 +261,57 @@ async def get_document_report(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Get the formatted report data for the split-screen view.
-    Returns text with chunk mapping + matched sources.
+    Formatted report for the split-screen view.
+    Returns whatever analysis results are available — both engines can complete
+    independently so partial reports are valid and useful.
     """
     doc = await ScanDocument.get(document_id)
     if not doc or doc.user_id != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    if doc.scan_status == ScanStatus.FAILED:
+    if (
+        doc.ai_scan_status == ScanStatus.FAILED
+        or doc.plagiarism_scan_status == ScanStatus.FAILED
+    ):
+        failing_engine = (
+            "AI detection"
+            if doc.ai_scan_status == ScanStatus.FAILED
+            else "Plagiarism detection"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Scan failed: {doc.scan_result.summary if doc.scan_result else 'Unknown error'}",
+            detail=f"{failing_engine} scan failed. Re-trigger via the analyze endpoint.",
         )
 
-    if doc.scan_status != ScanStatus.COMPLETED or not doc.scan_result:
+    if not doc.ai_result and not doc.plagiarism_result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Scan is not yet completed",
+            detail="Neither analysis has completed yet.",
         )
-
-    result = doc.scan_result
 
     return {
         "document_id": str(doc.id),
         "file_name": doc.original_file_name,
-        "overall_plagiarism_score": result.plagiarism_score,
-        "overall_ai_score": result.ai_score,
-        "summary": result.summary,
+        "ai_scan_status": doc.ai_scan_status.value if doc.ai_scan_status else None,
+        "plagiarism_scan_status": (
+            doc.plagiarism_scan_status.value if doc.plagiarism_scan_status else None
+        ),
+        "overall_ai_score": doc.ai_result.ai_score if doc.ai_result else None,
+        "overall_plagiarism_score": (
+            doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else None
+        ),
+        "ai_summary": doc.ai_result.summary if doc.ai_result else None,
+        "plagiarism_summary": doc.plagiarism_result.summary if doc.plagiarism_result else None,
+        "ai_heuristics": doc.ai_result.heuristics if doc.ai_result else None,
         "extracted_text": doc.extracted_text,
-        "chunks": [chunk.model_dump() for chunk in result.chunks],
-        "matched_sources": [source.model_dump() for source in result.matched_sources],
+        "chunks": (
+            [c.model_dump() for c in doc.plagiarism_result.chunks]
+            if doc.plagiarism_result
+            else []
+        ),
+        "matched_sources": (
+            [s.model_dump() for s in doc.plagiarism_result.matched_sources]
+            if doc.plagiarism_result
+            else []
+        ),
     }

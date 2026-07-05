@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from app.utils.security import decode_token
@@ -57,3 +57,8 @@ async def require_admin(
             detail="Admin access required",
         )
     return current_user
+
+
+async def get_arq_pool(request: Request):
+    """Inject the ARQ Redis pool stored on app state at startup."""
+    return request.app.state.arq_pool

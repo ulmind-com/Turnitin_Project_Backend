@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Tavily API
     TAVILY_API_KEY: str = ""
 
+    # Redis (ARQ worker queue)
+    REDIS_URL: str = "redis://localhost:6379"
+
     # Admin seed
     ADMIN_EMAIL: str = ""
     ADMIN_PASSWORD: str = ""

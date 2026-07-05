@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from arq import create_pool
+from arq.connections import RedisSettings
 from app.config import settings
 from app.database import init_db
 from app.seed import run_seed
@@ -28,6 +30,11 @@ async def lifespan(app: FastAPI):
     init_cloudinary()
     print("✅ Cloudinary configured")
 
+    # Create ARQ Redis pool for enqueueing background jobs from routes
+    arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+    app.state.arq_pool = arq_pool
+    print("✅ ARQ Redis pool connected")
+
     # Seed database
     await run_seed()
 
@@ -37,6 +44,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # ── Shutdown ──
+    await arq_pool.aclose()
     client.close()
     print("👋 Server shutdown complete")
 
