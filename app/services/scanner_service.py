@@ -198,6 +198,7 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
                         "index": idx,
                         "text": chunk["text"],
                         "plagiarism_score": result.get("plagiarism_score", 0),
+                        "match_type": result.get("match_type", "original"),
                         "matched_sources": result.get("matched_sources", []),
                     }
 
@@ -242,6 +243,7 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
                         "url": s.get("url", ""),
                         "title": s.get("title", ""),
                         "similarity": s.get("similarity", 0),
+                        "match_type": r.get("match_type", "original"),
                     }
                     for s in r.get("matched_sources", [])
                 ],

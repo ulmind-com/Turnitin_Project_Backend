@@ -126,10 +126,10 @@ RESPOND IN THIS EXACT JSON FORMAT ONLY (no markdown, no preamble):
 async def analyze_plagiarism(chunk_text: str, web_sources: list[dict]) -> dict:
     """
     Analyze a text chunk for plagiarism against web sources using Groq LLM.
-    Used by the plagiarism engine (called once per small overlapping chunk).
+    Uses llama-3.3-70b-versatile for higher accuracy.
     """
     if not settings.GROQ_API_KEY:
-        return {"plagiarism_score": 0, "matched_sources": [], "analysis": "API key not configured"}
+        return {"plagiarism_score": 0, "matched_sources": [], "analysis": "", "match_type": "original"}
 
     client = get_groq_client()
 
@@ -151,7 +151,13 @@ WEB SOURCES FOUND:
 INSTRUCTIONS:
 1. Compare the document text with each web source for similarity.
 2. Check for direct copying, paraphrasing, or close rewording.
-3. Assign a plagiarism score from 0 to 100:
+3. Determine the match_type:
+   - "not_cited": Text matches a source but has no citation or quotation marks
+   - "missing_quote": Text is very similar to source but lacks quotation marks
+   - "missing_citation": Text has quotation marks but no proper citation
+   - "cited_quoted": Text is properly cited and quoted
+   - "original": No significant match found
+4. Assign a plagiarism score from 0 to 100:
    - 0-10: Original content, no matches found
    - 11-30: Minor similarities, likely coincidental
    - 31-60: Moderate similarity, possible paraphrasing
@@ -161,12 +167,13 @@ INSTRUCTIONS:
 RESPOND IN THIS EXACT JSON FORMAT ONLY (no extra text):
 {{
   "plagiarism_score": <number 0-100>,
+  "match_type": "<not_cited|missing_quote|missing_citation|cited_quoted|original>",
   "matched_sources": [
     {{
       "url": "<source url>",
       "title": "<source title>",
       "similarity": <number 0-100>,
-      "matched_text": "<specific text from the source that matches>"
+      "matched_text": "<specific text from the student document that matches the source>"
     }}
   ],
   "analysis": "<brief 1-2 sentence explanation of findings>"
@@ -174,7 +181,7 @@ RESPOND IN THIS EXACT JSON FORMAT ONLY (no extra text):
 
     try:
         response = await client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a plagiarism detection engine. Respond ONLY with valid JSON."},
                 {"role": "user", "content": prompt},
@@ -193,9 +200,9 @@ RESPOND IN THIS EXACT JSON FORMAT ONLY (no extra text):
         return json.loads(result_text)
 
     except json.JSONDecodeError:
-        return {"plagiarism_score": 0, "matched_sources": [], "analysis": "Failed to parse AI response"}
+        return {"plagiarism_score": 0, "matched_sources": [], "analysis": "Failed to parse AI response", "match_type": "original"}
     except Exception as e:
-        return {"plagiarism_score": 0, "matched_sources": [], "analysis": f"Error: {str(e)}"}
+        return {"plagiarism_score": 0, "matched_sources": [], "analysis": f"Error: {str(e)}", "match_type": "original"}
 
 
 async def detect_ai_writing(chunk_text: str) -> dict:

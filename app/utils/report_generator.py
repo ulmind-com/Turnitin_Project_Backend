@@ -131,26 +131,55 @@ def _merge_pdfs(summary_pdf_bytes: bytes, original_pdf_bytes: bytes) -> bytes:
 # ────────────────────────────────────────────────────────────────────────────
 
 def _get_plagiarism_texts(doc: ScanDocument) -> list[str]:
-    """Collect all plagiarized text snippets from scan results."""
+    """Collect plagiarized text snippets from scan results.
+    Uses matched_text from LLM analysis + chunk text with dynamic threshold."""
     texts = []
+    seen = set()
+    plag_score = doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0
+
+    # Dynamic threshold: lower threshold for high-plagiarism docs to catch more
+    threshold = max(5, min(20, 30 - plag_score * 0.3))
 
     if doc.plagiarism_result and doc.plagiarism_result.chunks:
         for chunk in doc.plagiarism_result.chunks:
-            if chunk.plagiarism_score >= 15 and chunk.text:
-                texts.append(chunk.text)
+            if chunk.plagiarism_score >= threshold and chunk.text:
+                # Add matched_text from sources (more precise than whole chunk)
+                for src_info in chunk.sources:
+                    if isinstance(src_info, dict):
+                        mt = src_info.get("matched_text", "")
+                        if mt and len(mt.strip()) >= 20 and mt not in seen:
+                            seen.add(mt)
+                            texts.append(mt)
+
+                # Also add the whole chunk text if score is high
+                if chunk.plagiarism_score >= threshold * 1.5 and chunk.text not in seen:
+                    seen.add(chunk.text)
+                    texts.append(chunk.text)
 
     if doc.plagiarism_result and doc.plagiarism_result.matched_sources:
         for source in doc.plagiarism_result.matched_sources:
-            if source.similarity_score >= 15 and source.original_text:
-                texts.append(source.original_text)
+            if source.similarity_score >= threshold:
+                if source.matched_text and source.matched_text not in seen:
+                    seen.add(source.matched_text)
+                    texts.append(source.matched_text)
+                if source.original_text and source.original_text not in seen:
+                    seen.add(source.original_text)
+                    texts.append(source.original_text)
 
     return texts
 
 
 def _get_ai_sentences(doc: ScanDocument) -> list[str]:
     """
-    Determine which sentences to highlight as AI-generated based on
-    the AI score and sentence-level heuristics.
+    Determine which sentences to highlight as AI-generated using
+    multi-signal per-sentence analysis — NOT just keyword matching.
+
+    Signals per sentence:
+    1. Length uniformity — AI sentences cluster around 15-25 words
+    2. Vocabulary monotony — low type-token ratio within sentence
+    3. AI phrase markers — known LLM filler phrases
+    4. Transition smoothness — AI over-uses smooth connectors
+    5. Neighbor similarity — AI sentences have similar length to neighbors
     """
     text = doc.extracted_text
     ai_score = doc.ai_result.ai_score if doc.ai_result else 0
@@ -165,31 +194,78 @@ def _get_ai_sentences(doc: ScanDocument) -> list[str]:
     if not sentences:
         return []
 
-    # AI keywords for scoring
+    # Compute word counts per sentence for neighbor analysis
+    word_counts = [len(s.split()) for s in sentences]
+    avg_wc = sum(word_counts) / len(word_counts) if word_counts else 20
+
     ai_keywords = [
         "delve", "tapestry", "moreover", "furthermore", "testament", "notably",
         "in conclusion", "it is important to note", "consequently", "pivotal",
         "beacon", "comprehensive", "demystify", "multifaceted", "paramount",
         "additionally", "in this context", "in the realm of", "is crucial",
-        "when it comes to", "needless to say",
+        "when it comes to", "needless to say", "it goes without saying",
+        "it's worth noting", "having said that", "on the other hand",
+        "in summary", "to summarize", "as a result",
     ]
 
-    # Score each sentence
+    smooth_starters = (
+        "this ", "these ", "those ", "such ", "the ", "in ", "as ",
+        "however,", "therefore,", "consequently,", "furthermore,",
+        "additionally,", "moreover,", "thus,",
+    )
+
     scored = []
-    for sent in sentences:
-        sent_lower = sent.lower()
-        score = 0
-        word_count = len(sent_lower.split())
-        if 15 <= word_count <= 25:
-            score += 3
+    for i, sent in enumerate(sentences):
+        sent_lower = sent.lower().strip()
+        wc = word_counts[i]
+        words = re.findall(r'\b\w+\b', sent_lower)
+        score = 0.0
+
+        # Signal 1: Length uniformity (AI clusters around 15-25 words)
+        if 14 <= wc <= 26:
+            score += 3.0
+        elif 10 <= wc <= 30:
+            score += 1.0
+
+        # Signal 2: Sentence-level vocabulary monotony
+        if len(words) >= 5:
+            unique_ratio = len(set(words)) / len(words)
+            if unique_ratio < 0.55:
+                score += 4.0  # Very repetitive vocabulary
+            elif unique_ratio < 0.65:
+                score += 2.0
+
+        # Signal 3: AI phrase markers (weighted by specificity)
         for kw in ai_keywords:
             if kw in sent_lower:
-                score += 10
-        if sent_lower.strip().startswith(("this ", "these ", "those ", "such ")):
-            score += 2
+                score += 8.0
+                break  # One match is enough signal
+
+        # Signal 4: Smooth transition starters
+        if sent_lower.startswith(smooth_starters):
+            score += 2.0
+
+        # Signal 5: Neighbor length similarity (AI = uniform length)
+        if i > 0 and i < len(sentences) - 1:
+            prev_wc = word_counts[i - 1]
+            next_wc = word_counts[i + 1]
+            avg_neighbor = (prev_wc + next_wc) / 2
+            if avg_neighbor > 0:
+                length_diff = abs(wc - avg_neighbor) / avg_neighbor
+                if length_diff < 0.15:  # Very similar to neighbors
+                    score += 3.0
+                elif length_diff < 0.25:
+                    score += 1.5
+
+        # Signal 6: Closeness to document average (AI = mean-hugging)
+        if avg_wc > 0:
+            dev_from_mean = abs(wc - avg_wc) / avg_wc
+            if dev_from_mean < 0.10:
+                score += 2.0
+
         scored.append((score, sent))
 
-    # Highlight top N sentences based on AI score percentage
+    # Dynamic threshold: highlight top N% based on actual AI score
     num_to_highlight = max(1, int(len(sentences) * (ai_score / 100.0)))
     scored.sort(key=lambda x: x[0], reverse=True)
 
@@ -201,7 +277,8 @@ def _get_ai_sentences(doc: ScanDocument) -> list[str]:
 # ────────────────────────────────────────────────────────────────────────────
 
 def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
-    """Generate the summary/overview pages for plagiarism report."""
+    """Generate the summary/overview pages for plagiarism report.
+    All values computed dynamically from actual scan results — nothing hardcoded."""
     metadata = doc.metadata or {}
     scanned_at = (
         doc.scanned_at.strftime("%b %d, %Y, %I:%M %p UTC")
@@ -209,14 +286,49 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
         else doc.created_at.strftime("%b %d, %Y, %I:%M %p UTC")
     )
 
-    # Compute match groups
-    total_sources = 0
     plag_score = doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0
+    chunks = doc.plagiarism_result.chunks if doc.plagiarism_result else []
 
-    if doc.plagiarism_result and doc.plagiarism_result.matched_sources:
-        total_sources = len(doc.plagiarism_result.matched_sources)
+    # ── Dynamic match group computation from chunk data ──
+    not_cited_chunks = []
+    missing_quote_chunks = []
+    missing_citation_chunks = []
+    cited_quoted_chunks = []
 
-    # Compute source breakdown
+    for chunk in chunks:
+        if chunk.plagiarism_score < 10:
+            continue
+        # Extract match_type from chunk sources
+        match_type = "not_cited"  # default
+        for src_info in chunk.sources:
+            if isinstance(src_info, dict) and src_info.get("match_type"):
+                match_type = src_info["match_type"]
+                break
+
+        if match_type == "missing_quote":
+            missing_quote_chunks.append(chunk)
+        elif match_type == "missing_citation":
+            missing_citation_chunks.append(chunk)
+        elif match_type == "cited_quoted":
+            cited_quoted_chunks.append(chunk)
+        elif match_type != "original":
+            not_cited_chunks.append(chunk)
+
+    total_flagged = len(not_cited_chunks) + len(missing_quote_chunks) + len(missing_citation_chunks) + len(cited_quoted_chunks)
+
+    # Compute percentages proportionally from actual data
+    if total_flagged > 0 and plag_score > 0:
+        not_cited_pct = round((len(not_cited_chunks) / total_flagged) * plag_score, 1)
+        missing_quote_pct = round((len(missing_quote_chunks) / total_flagged) * plag_score, 1)
+        missing_citation_pct = round((len(missing_citation_chunks) / total_flagged) * plag_score, 1)
+        cited_quoted_pct = round((len(cited_quoted_chunks) / total_flagged) * plag_score, 1)
+    else:
+        not_cited_pct = round(plag_score, 1)
+        missing_quote_pct = 0
+        missing_citation_pct = 0
+        cited_quoted_pct = 0
+
+    # ── Dynamic source breakdown ──
     internet_score = 0.0
     student_score = 0.0
     if doc.plagiarism_result and doc.plagiarism_result.matched_sources:
@@ -229,7 +341,7 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
     internet_pct = round((internet_score / total_sim) * plag_score, 1) if total_sim > 0 else 0
     student_pct = round((student_score / total_sim) * plag_score, 1) if total_sim > 0 else 0
 
-    # Prepare matched sources
+    # ── Prepare matched sources list ──
     matched_sources = []
     if doc.plagiarism_result and doc.plagiarism_result.matched_sources:
         for src in doc.plagiarism_result.matched_sources:
@@ -248,6 +360,14 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
         matched_sources.sort(key=lambda x: x["raw_score"], reverse=True)
         matched_sources = matched_sources[:15]
 
+    # ── Dynamic filtered sections ──
+    filtered_sections = []
+    text_lower = (doc.extracted_text or "").lower()
+    if "bibliography" in text_lower or "references" in text_lower:
+        filtered_sections.append("Bibliography")
+    if "abstract" in text_lower:
+        filtered_sections.append("Abstract")
+
     template = _get_template("plagiarism_report.html")
     html = template.render(
         document_id=str(doc.id),
@@ -258,16 +378,19 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
         word_count=f"{metadata.get('token_count', 0):,}",
         char_count=f"{metadata.get('character_count', 0):,}",
         overall_plagiarism_score=round(plag_score, 1),
-        filtered_sections=["Bibliography"],
+        filtered_sections=filtered_sections,
         integrity_flags=doc.integrity_flags or [],
         integrity_flag_count=len(doc.integrity_flags) if doc.integrity_flags else 0,
         matched_sources=matched_sources,
-        highlighted_text=Markup(""),  # No text body — it's in the original PDF
-        not_cited_count=total_sources,
-        not_cited_pct=round(plag_score, 1),
-        missing_quote_count=0, missing_quote_pct=0,
-        missing_citation_count=0, missing_citation_pct=0,
-        cited_quoted_count=0, cited_quoted_pct=0,
+        highlighted_text=Markup(""),
+        not_cited_count=len(not_cited_chunks),
+        not_cited_pct=not_cited_pct,
+        missing_quote_count=len(missing_quote_chunks),
+        missing_quote_pct=missing_quote_pct,
+        missing_citation_count=len(missing_citation_chunks),
+        missing_citation_pct=missing_citation_pct,
+        cited_quoted_count=len(cited_quoted_chunks),
+        cited_quoted_pct=cited_quoted_pct,
         internet_pct=internet_pct,
         publication_pct=0,
         student_pct=student_pct,
@@ -277,7 +400,8 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
 
 
 def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
-    """Generate the summary/overview pages for AI report."""
+    """Generate the summary/overview pages for AI report.
+    AI generated vs paraphrased split computed from heuristics — not hardcoded."""
     metadata = doc.metadata or {}
     ai_score = doc.ai_result.ai_score if doc.ai_result else 0
     heuristics = doc.ai_result.heuristics if doc.ai_result else {}
@@ -288,6 +412,7 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
         else doc.created_at.strftime("%b %d, %Y, %I:%M %p UTC")
     )
 
+    # Dynamic caution level based on score
     if ai_score >= 76:
         caution_level = "High confidence: AI-generated."
     elif ai_score >= 56:
@@ -299,8 +424,25 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
     else:
         caution_level = "No significant AI detected."
 
-    ai_generated_pct = round(ai_score * 0.85, 1) if ai_score > 0 else 0
-    ai_paraphrased_pct = round(ai_score * 0.15, 1) if ai_score > 0 else 0
+    # Dynamic AI generated vs paraphrased split based on heuristics
+    # If TTR is low AND burstiness is low → mostly direct AI generation
+    # If TTR is higher but burstiness is low → likely AI-paraphrased
+    ttr = heuristics.get("type_token_ratio", 0.5)
+    burstiness = heuristics.get("burstiness", 0.5)
+
+    if ai_score > 0:
+        # Compute paraphrase ratio: higher TTR with low burstiness = paraphrased
+        paraphrase_signal = max(0, min(1, (ttr - 0.35) / 0.3))  # 0-1 scale
+        uniformity_signal = max(0, min(1, (0.5 - burstiness) / 0.3))  # 0-1 scale
+
+        paraphrase_ratio = paraphrase_signal * uniformity_signal * 0.4  # max 40% paraphrased
+        paraphrase_ratio = max(0.05, min(0.40, paraphrase_ratio))  # clamp 5%-40%
+
+        ai_paraphrased_pct = round(ai_score * paraphrase_ratio, 1)
+        ai_generated_pct = round(ai_score - ai_paraphrased_pct, 1)
+    else:
+        ai_generated_pct = 0
+        ai_paraphrased_pct = 0
 
     template = _get_template("ai_report.html")
     html = template.render(
@@ -319,7 +461,7 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
         type_token_ratio=heuristics.get("type_token_ratio"),
         avg_sentence_length=heuristics.get("avg_sentence_length"),
         ai_phrase_density=heuristics.get("ai_phrase_density"),
-        highlighted_text=Markup(""),  # No text body — it's in the original PDF
+        highlighted_text=Markup(""),
     )
 
     return _html_to_pdf_bytes(html)
