@@ -49,6 +49,7 @@ class ScanDocument(Document):
     user_id: str
     original_file_name: str
     file_type: str = ""
+    original_file_url: str = ""  # Cloudinary URL of the original uploaded file
     extracted_text: str = ""
 
     # Independent lifecycle statuses — None means the analysis has not been triggered yet

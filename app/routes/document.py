@@ -92,6 +92,13 @@ async def upload_document(
         "token_count": len(tokens),
     }
 
+    # Upload original file to Cloudinary for later PDF report generation
+    try:
+        from app.services.cloudinary_service import upload_raw_file
+        original_file_url = await upload_raw_file(file_bytes, folder="original_documents")
+    except Exception:
+        original_file_url = ""
+
     # Deduct credit + insert document
     # Note: MongoDB Atlas free/shared tier (M0) does not support multi-document
     # transactions, so we perform sequential operations instead.
@@ -100,6 +107,7 @@ async def upload_document(
         user_id=str(current_user.id),
         original_file_name=filename,
         file_type=file_ext,
+        original_file_url=original_file_url,
         extracted_text=cleaned_text,
         integrity_flags=integrity_flags,
         metadata=metadata,

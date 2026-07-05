@@ -31,3 +31,26 @@ async def upload_image(file_bytes: bytes, folder: str = "payment_proofs") -> str
         transformation=[{"quality": "auto", "fetch_format": "auto"}],
     )
     return result.get("secure_url", "")
+
+
+async def upload_raw_file(file_bytes: bytes, folder: str = "original_documents", public_id: str = None) -> str:
+    """
+    Upload a raw file (PDF/DOCX) to Cloudinary and return the secure URL.
+
+    Args:
+        file_bytes: Raw bytes of the file.
+        folder: Cloudinary folder to store the file in.
+        public_id: Optional public ID for the file.
+
+    Returns:
+        Secure URL of the uploaded file.
+    """
+    upload_opts = {
+        "folder": folder,
+        "resource_type": "raw",
+    }
+    if public_id:
+        upload_opts["public_id"] = public_id
+
+    result = cloudinary.uploader.upload(file_bytes, **upload_opts)
+    return result.get("secure_url", "")
