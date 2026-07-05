@@ -92,23 +92,21 @@ async def upload_document(
         "token_count": len(tokens),
     }
 
-    # Deduct credit + insert document atomically to prevent race conditions
-    db_client = User.get_motor_collection().database.client
-    async with db_client.start_session() as session:
-        async with session.start_transaction():
-            await current_user.update({"$inc": {"credits": -1}}, session=session)
-            doc = ScanDocument(
-                user_id=str(current_user.id),
-                original_file_name=filename,
-                file_type=file_ext,
-                extracted_text=cleaned_text,
-                integrity_flags=integrity_flags,
-                metadata=metadata,
-                # Statuses are None until the caller explicitly triggers each engine
-                ai_scan_status=None,
-                plagiarism_scan_status=None,
-            )
-            await doc.insert(session=session)
+    # Deduct credit + insert document
+    # Note: MongoDB Atlas free/shared tier (M0) does not support multi-document
+    # transactions, so we perform sequential operations instead.
+    await current_user.update({"$inc": {"credits": -1}})
+    doc = ScanDocument(
+        user_id=str(current_user.id),
+        original_file_name=filename,
+        file_type=file_ext,
+        extracted_text=cleaned_text,
+        integrity_flags=integrity_flags,
+        metadata=metadata,
+        ai_scan_status=None,
+        plagiarism_scan_status=None,
+    )
+    await doc.insert()
 
     return UploadResponse(
         document_id=str(doc.id),
