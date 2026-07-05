@@ -184,15 +184,15 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
         # ----------------------------------------------------
         # Step B: External Web Check
         # ----------------------------------------------------
-        chunks = create_overlapping_chunks(text, sentences_per_chunk=4, overlap_sentences=1)
+        chunks = create_overlapping_chunks(text, sentences_per_chunk=6, overlap_sentences=1)
         valid = []
         if chunks:
-            semaphore = asyncio.Semaphore(3)
+            semaphore = asyncio.Semaphore(5)
 
             async def _process_chunk(chunk: dict, idx: int) -> dict:
                 async with semaphore:
                     key_phrases = extract_key_phrases(chunk["text"])
-                    web_sources = await search_web_for_chunk(chunk["text"], key_phrases)
+                    web_sources = await search_web_for_chunk(chunk["text"], key_phrases[:2])
                     result = await analyze_plagiarism(chunk["text"], web_sources)
                     return {
                         "index": idx,

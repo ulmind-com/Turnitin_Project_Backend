@@ -28,7 +28,7 @@ async def search_web_for_chunk(chunk_text: str, key_phrases: list[str]) -> list[
     all_results = []
     seen_urls = set()
 
-    for phrase in key_phrases[:3]:  # limit to 3 searches per chunk
+    for phrase in key_phrases[:2]:  # limit to 2 searches per chunk for speed
         try:
             # Use the phrase as a search query, wrapped in quotes for exact match
             query = f'"{phrase}"'
