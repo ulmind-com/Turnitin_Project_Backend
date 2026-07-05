@@ -63,33 +63,26 @@ def create_large_window_chunks(
     overlap_words: int = 100,
 ) -> list[dict]:
     """
-    Large word-count-based chunks for full-context AI detection.
-
-    800-word windows give the LLM enough text to evaluate consistent sentence
-    rhythm, vocabulary monotony, and structural patterns — signals that are
-    invisible in 4-sentence micro-chunks.
+    Large overlapping word-windows for AI detection.
+    Bigger context lets the LLM observe sentence-rhythm patterns.
     """
     words = text.split()
     if not words:
         return []
 
     if len(words) <= words_per_chunk:
-        return [{"index": 0, "text": text, "word_count": len(words)}]
+        return [{"index": 0, "text": text}]
 
     chunks = []
     step = max(1, words_per_chunk - overlap_words)
-    chunk_index = 0
+    idx = 0
 
-    for i in range(0, len(words), step):
-        end = min(i + words_per_chunk, len(words))
-        chunk_text = " ".join(words[i:end])
-        if len(chunk_text.strip()) >= 100:
-            chunks.append({
-                "index": chunk_index,
-                "text": chunk_text,
-                "word_count": end - i,
-            })
-            chunk_index += 1
+    for start in range(0, len(words), step):
+        end = min(start + words_per_chunk, len(words))
+        chunk_text = " ".join(words[start:end])
+        if len(chunk_text.strip()) >= 50:
+            chunks.append({"index": idx, "text": chunk_text})
+            idx += 1
         if end >= len(words):
             break
 
@@ -97,23 +90,7 @@ def create_large_window_chunks(
 
 
 def compute_text_heuristics(text: str) -> dict:
-    """
-    Compute objective statistical proxies for perplexity and burstiness.
-
-    These metrics are passed verbatim into the Groq prompt so the LLM can
-    anchor its score on measurable evidence rather than pure intuition.
-
-    Burstiness (B):
-        Coefficient of Variation of sentence word-counts.
-        Human baseline: B ≥ 0.50.  AI-generated text typically: B < 0.30.
-
-    Type-Token Ratio (TTR):
-        Unique words / total words — measures vocabulary diversity.
-        Human baseline: TTR ≥ 0.60.  AI-generated text typically: TTR < 0.50.
-
-    AI Phrase Density:
-        Count of known AI filler phrases per 100 words.
-    """
+    """Compute statistical heuristics for an AI detection section."""
     sentences = split_into_sentences(text)
     words = re.findall(r"\b\w+\b", text.lower())
 
@@ -150,21 +127,31 @@ def compute_text_heuristics(text: str) -> dict:
 
 
 def extract_key_phrases(text: str, max_phrases: int = 3) -> list[str]:
-    """Extract short key phrases (original formatting) for Tavily web search queries."""
+    """
+    Extract short, distinctive key phrases for web search.
+    
+    Strategy: Take 5-8 word windows from unique parts of the text.
+    Keeps original casing and punctuation for natural search queries.
+    """
     sentences = split_into_sentences(text)
     if not sentences:
-        return [text[:100]]
+        return [text[:80]]
 
-    # Sort sentences by length (longest first) as they are more likely to be unique/searchable
-    sorted_sentences = sorted(sentences, key=len, reverse=True)
-    
     phrases = []
-    for s in sorted_sentences[:max_phrases]:
-        # Take the first 10-12 words of the sentence to keep the query concise but unique
-        words = s.split()
-        if len(words) > 5:
-            phrases.append(" ".join(words[:12]))
-        else:
-            phrases.append(s)
+    # Pick from different parts of the chunk: beginning, middle, end
+    pick_indices = [0]
+    if len(sentences) > 2:
+        pick_indices.append(len(sentences) // 2)
+    if len(sentences) > 1:
+        pick_indices.append(len(sentences) - 1)
 
-    return phrases if phrases else [text[:100]]
+    for idx in pick_indices:
+        if idx < len(sentences):
+            words = sentences[idx].split()
+            # Take 5-8 words — short enough for search, long enough for uniqueness
+            phrase_words = words[:min(8, len(words))]
+            phrase = " ".join(phrase_words)
+            if len(phrase) >= 15:  # Skip very short phrases
+                phrases.append(phrase)
+
+    return phrases[:max_phrases] if phrases else [text[:80]]

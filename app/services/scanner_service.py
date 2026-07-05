@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -19,17 +20,14 @@ from app.services.groq_service import analyze_plagiarism, detect_ai_writing_full
 async def analyze_ai_job(doc_id: str) -> None:
     """
     Evaluate the full document text for AI-generated content.
-
-    Strategy:
-      1. Split the document into large 800-word sections (not micro-chunks) so
-         the LLM can observe sentence-rhythm patterns across a meaningful span.
-      2. Compute perplexity/burstiness proxies locally per section before calling
-         the LLM — these hard numbers anchor the model's score.
-      3. Aggregate section scores into a single document-level ai_score.
-      4. Persist with a targeted $set — plagiarism fields are never touched.
     """
+    print(f"\n{'='*60}")
+    print(f"🤖 AI SCAN START — doc_id: {doc_id}")
+    print(f"{'='*60}")
+
     doc = await ScanDocument.get(doc_id)
     if not doc:
+        print(f"❌ Document {doc_id} not found")
         return
 
     try:
@@ -37,6 +35,7 @@ async def analyze_ai_job(doc_id: str) -> None:
 
         text = doc.extracted_text
         if not text or len(text.strip()) < 50:
+            print(f"⚠️ Text too short ({len(text.strip()) if text else 0} chars)")
             await doc.update({"$set": {
                 "ai_scan_status": ScanStatus.COMPLETED.value,
                 "ai_result": AIResult(
@@ -47,20 +46,33 @@ async def analyze_ai_job(doc_id: str) -> None:
             return
 
         sections = create_large_window_chunks(text, words_per_chunk=800, overlap_words=100)
+        print(f"📄 Created {len(sections)} sections for AI analysis")
 
         semaphore = asyncio.Semaphore(2)
 
-        async def _analyze_section(section: dict) -> dict:
+        async def _analyze_section(section: dict, idx: int) -> dict:
             async with semaphore:
-                return await detect_ai_writing_full(section["text"])
+                print(f"   🔬 Analyzing section {idx} ({len(section['text'].split())} words)...")
+                result = await detect_ai_writing_full(section["text"])
+                print(f"   ✅ Section {idx} → AI score: {result.get('ai_score', 'N/A')}%")
+                return result
 
         raw_results = await asyncio.gather(
-            *[_analyze_section(s) for s in sections],
+            *[_analyze_section(s, i) for i, s in enumerate(sections)],
             return_exceptions=True,
         )
 
+        # Log exceptions
+        for i, r in enumerate(raw_results):
+            if isinstance(r, Exception):
+                print(f"   ❌ Section {i} FAILED: {r}")
+                traceback.print_exception(type(r), r, r.__traceback__)
+
         valid = [r for r in raw_results if isinstance(r, dict)]
+        print(f"📊 {len(valid)}/{len(raw_results)} sections succeeded")
+
         if not valid:
+            print(f"❌ ALL sections failed!")
             await doc.update({"$set": {
                 "ai_scan_status": ScanStatus.FAILED.value,
                 "ai_result": AIResult(summary="All section analyses failed.").model_dump(),
@@ -68,8 +80,9 @@ async def analyze_ai_job(doc_id: str) -> None:
             return
 
         avg_score = round(sum(r.get("ai_score", 0) for r in valid) / len(valid), 1)
+        print(f"🎯 Final AI Score: {avg_score}%")
 
-        # Aggregate heuristics (mean across sections)
+        # Aggregate heuristics
         heuristic_keys = ["burstiness", "type_token_ratio", "avg_sentence_length",
                           "ai_phrase_density", "sentence_count", "word_count"]
         section_heuristics = [r.get("heuristics", {}) for r in valid if r.get("heuristics")]
@@ -83,7 +96,6 @@ async def analyze_ai_job(doc_id: str) -> None:
                 for k in heuristic_keys
             }
 
-        # Human-readable verdict
         burstiness = agg_heuristics.get("burstiness", 0)
         ttr = agg_heuristics.get("type_token_ratio", 0)
 
@@ -114,9 +126,11 @@ async def analyze_ai_job(doc_id: str) -> None:
             ).model_dump(),
             "scanned_at": datetime.now(timezone.utc),
         }})
+        print(f"✅ AI SCAN COMPLETE — Score: {avg_score}%\n")
 
     except Exception as exc:
-        # Re-fetch to avoid stale state; use $set so plagiarism data is safe
+        print(f"❌ AI SCAN CRASHED: {exc}")
+        traceback.print_exc()
         doc = await ScanDocument.get(doc_id)
         if doc:
             await doc.update({"$set": {
@@ -129,15 +143,16 @@ async def analyze_ai_job(doc_id: str) -> None:
 
 async def analyze_plagiarism_job(doc_id: str) -> None:
     """
-    Detect plagiarism via a two-tier matching workflow:
-      Step A (Internal Database Check): Query the SubmittedPaper collection using N-gram hashes
-             and Jaccard Similarity to find any matches >15%.
-      Step B (External Web Check): Run the existing AsyncTavilyClient web search logic.
-      Step C (Aggregation & Update): Combine, deduplicate, calculate plagiarism_score, and update document.
-      Step D (Global Ingestion): Save the current document's text and ngram_hashes into the SubmittedPaper collection.
+    Detect plagiarism via external web search + LLM analysis.
+    Pure real-time external analysis — no internal database matching.
     """
+    print(f"\n{'='*60}")
+    print(f"🔎 PLAGIARISM SCAN START — doc_id: {doc_id}")
+    print(f"{'='*60}")
+
     doc = await ScanDocument.get(doc_id)
     if not doc:
+        print(f"❌ Document {doc_id} not found")
         return
 
     try:
@@ -145,6 +160,7 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
 
         text = doc.extracted_text
         if not text or len(text.strip()) < 50:
+            print(f"⚠️ Text too short ({len(text.strip()) if text else 0} chars)")
             await doc.update({"$set": {
                 "plagiarism_scan_status": ScanStatus.COMPLETED.value,
                 "plagiarism_result": PlagiarismResult(
@@ -153,37 +169,81 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             }})
             return
 
-        # ----------------------------------------------------
-        # Step A: External Web Check
-        # ----------------------------------------------------
+        # ── Step 1: Create chunks ──
         chunks = create_overlapping_chunks(text, sentences_per_chunk=6, overlap_sentences=1)
-        valid = []
-        if chunks:
-            semaphore = asyncio.Semaphore(5)
+        print(f"📄 Created {len(chunks)} chunks for plagiarism analysis")
 
-            async def _process_chunk(chunk: dict, idx: int) -> dict:
-                async with semaphore:
+        if not chunks:
+            print("⚠️ No chunks created from text")
+            await doc.update({"$set": {
+                "plagiarism_scan_status": ScanStatus.COMPLETED.value,
+                "plagiarism_result": PlagiarismResult(
+                    plagiarism_score=0.0,
+                    summary="Could not create text chunks for analysis.",
+                ).model_dump(),
+            }})
+            return
+
+        # ── Step 2: Process each chunk (web search → LLM analysis) ──
+        semaphore = asyncio.Semaphore(3)  # Limit concurrent API calls
+
+        async def _process_chunk(chunk: dict, idx: int) -> dict:
+            async with semaphore:
+                try:
+                    print(f"\n   📝 Chunk {idx}: {chunk['text'][:80]}...")
+
+                    # Extract key phrases for search
                     key_phrases = extract_key_phrases(chunk["text"])
+                    print(f"   🔑 Key phrases: {[p[:40] for p in key_phrases]}")
+
+                    # Search the web
                     web_sources = await search_web_for_chunk(chunk["text"], key_phrases[:2])
+                    print(f"   🌐 Web sources found: {len(web_sources)}")
+
+                    # Analyze with LLM
                     result = await analyze_plagiarism(chunk["text"], web_sources)
+                    score = result.get("plagiarism_score", 0)
+                    sources_count = len(result.get("matched_sources", []))
+                    print(f"   🎯 Chunk {idx} → Score: {score}%, Sources: {sources_count}")
+
                     return {
                         "index": idx,
                         "text": chunk["text"],
-                        "plagiarism_score": result.get("plagiarism_score", 0),
+                        "plagiarism_score": score,
                         "match_type": result.get("match_type", "original"),
                         "matched_sources": result.get("matched_sources", []),
                     }
+                except Exception as e:
+                    print(f"   ❌ Chunk {idx} FAILED: {e}")
+                    traceback.print_exc()
+                    # Return a result with 0 score instead of raising
+                    return {
+                        "index": idx,
+                        "text": chunk["text"],
+                        "plagiarism_score": 0,
+                        "match_type": "original",
+                        "matched_sources": [],
+                    }
 
-            raw_results = await asyncio.gather(
-                *[_process_chunk(c, i) for i, c in enumerate(chunks)],
-                return_exceptions=True,
-            )
-            valid = [r for r in raw_results if isinstance(r, dict)]
+        raw_results = await asyncio.gather(
+            *[_process_chunk(c, i) for i, c in enumerate(chunks)],
+            return_exceptions=True,
+        )
 
-        # ----------------------------------------------------
-        # Step B: Aggregation & Update
-        # ----------------------------------------------------
-        avg_web_score = round(sum(r["plagiarism_score"] for r in valid) / len(valid), 1) if valid else 0.0
+        # Filter valid results
+        valid = [r for r in raw_results if isinstance(r, dict)]
+        failed = [r for r in raw_results if isinstance(r, Exception)]
+
+        print(f"\n📊 Chunks: {len(valid)} succeeded, {len(failed)} failed")
+        for i, f in enumerate(failed):
+            print(f"   ❌ Failed chunk: {f}")
+
+        # ── Step 3: Aggregate results ──
+        if valid:
+            avg_web_score = round(sum(r["plagiarism_score"] for r in valid) / len(valid), 1)
+        else:
+            avg_web_score = 0.0
+
         final_plagiarism_score = avg_web_score
 
         # Deduplicate matched sources
@@ -223,6 +283,8 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             for r in valid
         ]
 
+        print(f"\n🎯 FINAL: Score={final_plagiarism_score}%, Sources={len(all_sources)}")
+
         summary_parts = []
         if len(all_sources) > 0:
             summary_parts.append(f"Found {len(all_sources)} matching web source(s) with {avg_web_score}% average web similarity.")
@@ -241,8 +303,11 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             ).model_dump(),
             "scanned_at": datetime.now(timezone.utc),
         }})
+        print(f"✅ PLAGIARISM SCAN COMPLETE — Score: {final_plagiarism_score}%\n")
 
     except Exception as exc:
+        print(f"❌ PLAGIARISM SCAN CRASHED: {exc}")
+        traceback.print_exc()
         doc = await ScanDocument.get(doc_id)
         if doc:
             await doc.update({"$set": {
