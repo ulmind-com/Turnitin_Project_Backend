@@ -7,6 +7,8 @@ from app.models.document import (
     AIResult, PlagiarismResult,
     MatchedSource, ChunkResult,
 )
+from app.models.repository import SubmittedPaper
+from app.utils.similarity_engine import generate_ngram_hashes, calculate_jaccard_similarity
 from app.utils.chunker import (
     create_overlapping_chunks,
     create_large_window_chunks,
@@ -129,14 +131,12 @@ async def analyze_ai_job(doc_id: str) -> None:
 
 async def analyze_plagiarism_job(doc_id: str) -> None:
     """
-    Detect plagiarism via web search (Tavily) + LLM similarity scoring (Groq).
-
-    Strategy:
-      1. Split the document into small 4-sentence overlapping chunks — tight
-         windows produce better Tavily search queries and precise match snippets.
-      2. For each chunk: extract key phrases → Tavily search → Groq similarity.
-      3. Deduplicate matched sources; compute document-level weighted average.
-      4. Persist with a targeted $set — AI detection fields are never touched.
+    Detect plagiarism via a two-tier matching workflow:
+      Step A (Internal Database Check): Query the SubmittedPaper collection using N-gram hashes
+             and Jaccard Similarity to find any matches >15%.
+      Step B (External Web Check): Run the existing AsyncTavilyClient web search logic.
+      Step C (Aggregation & Update): Combine, deduplicate, calculate plagiarism_score, and update document.
+      Step D (Global Ingestion): Save the current document's text and ngram_hashes into the SubmittedPaper collection.
     """
     doc = await ScanDocument.get(doc_id)
     if not doc:
@@ -155,50 +155,68 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             }})
             return
 
+        # ----------------------------------------------------
+        # Step A: Internal Database Check (N-Gram & Jaccard)
+        # ----------------------------------------------------
+        current_hashes = generate_ngram_hashes(text, n=5)
+        highest_internal_similarity = 0.0
+        internal_sources = []
+
+        if current_hashes:
+            matching_papers = await SubmittedPaper.find(
+                {"ngram_hashes": {"$in": list(current_hashes)}, "document_id": {"$ne": doc_id}}
+            ).to_list()
+
+            for paper in matching_papers:
+                paper_hashes = set(paper.ngram_hashes)
+                sim = calculate_jaccard_similarity(current_hashes, paper_hashes)
+                if sim > 15.0:
+                    highest_internal_similarity = max(highest_internal_similarity, sim)
+                    internal_sources.append(MatchedSource(
+                        url="Submitted Work (Student Paper)",
+                        title=f"Student Paper {paper.document_id[:8]}",
+                        matched_text=paper.extracted_text[:300] + ("..." if len(paper.extracted_text) > 300 else ""),
+                        original_text=text[:200],
+                        similarity_score=sim,
+                        chunk_index=0,
+                    ))
+
+        # ----------------------------------------------------
+        # Step B: External Web Check
+        # ----------------------------------------------------
         chunks = create_overlapping_chunks(text, sentences_per_chunk=4, overlap_sentences=1)
-        if not chunks:
-            await doc.update({"$set": {
-                "plagiarism_scan_status": ScanStatus.COMPLETED.value,
-                "plagiarism_result": PlagiarismResult(
-                    summary="Could not extract meaningful content for analysis.",
-                ).model_dump(),
-            }})
-            return
+        valid = []
+        if chunks:
+            semaphore = asyncio.Semaphore(3)
 
-        semaphore = asyncio.Semaphore(3)
+            async def _process_chunk(chunk: dict, idx: int) -> dict:
+                async with semaphore:
+                    key_phrases = extract_key_phrases(chunk["text"])
+                    web_sources = await search_web_for_chunk(chunk["text"], key_phrases)
+                    result = await analyze_plagiarism(chunk["text"], web_sources)
+                    return {
+                        "index": idx,
+                        "text": chunk["text"],
+                        "plagiarism_score": result.get("plagiarism_score", 0),
+                        "matched_sources": result.get("matched_sources", []),
+                    }
 
-        async def _process_chunk(chunk: dict, idx: int) -> dict:
-            async with semaphore:
-                key_phrases = extract_key_phrases(chunk["text"])
-                web_sources = await search_web_for_chunk(chunk["text"], key_phrases)
-                result = await analyze_plagiarism(chunk["text"], web_sources)
-                return {
-                    "index": idx,
-                    "text": chunk["text"],
-                    "plagiarism_score": result.get("plagiarism_score", 0),
-                    "matched_sources": result.get("matched_sources", []),
-                }
+            raw_results = await asyncio.gather(
+                *[_process_chunk(c, i) for i, c in enumerate(chunks)],
+                return_exceptions=True,
+            )
+            valid = [r for r in raw_results if isinstance(r, dict)]
 
-        raw_results = await asyncio.gather(
-            *[_process_chunk(c, i) for i, c in enumerate(chunks)],
-            return_exceptions=True,
-        )
+        # ----------------------------------------------------
+        # Step C: Aggregation & Update
+        # ----------------------------------------------------
+        avg_web_score = round(sum(r["plagiarism_score"] for r in valid) / len(valid), 1) if valid else 0.0
+        final_plagiarism_score = max(avg_web_score, highest_internal_similarity)
 
-        valid = [r for r in raw_results if isinstance(r, dict)]
-        if not valid:
-            await doc.update({"$set": {
-                "plagiarism_scan_status": ScanStatus.FAILED.value,
-                "plagiarism_result": PlagiarismResult(
-                    summary="All chunk analyses failed.",
-                ).model_dump(),
-            }})
-            return
+        # Deduplicate matched sources
+        all_sources: list[MatchedSource] = list(internal_sources)
+        seen_urls = {src.title for src in internal_sources}
 
-        avg_score = round(sum(r["plagiarism_score"] for r in valid) / len(valid), 1)
-
-        # Deduplicate matched sources across all chunks
-        all_sources: list[MatchedSource] = []
-        seen_urls: set[str] = set()
         for r in valid:
             for src in r.get("matched_sources", []):
                 url = src.get("url", "")
@@ -231,33 +249,39 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             for r in valid
         ]
 
-        if avg_score > 50:
-            summary = (
-                f"High plagiarism detected ({avg_score}%). "
-                f"{len(all_sources)} matching web sources found across "
-                f"{len(valid)} text segments."
-            )
-        elif avg_score > 20:
-            summary = (
-                f"Moderate plagiarism detected ({avg_score}%). "
-                f"{len(all_sources)} potential matches found."
-            )
+        web_match_count = len(all_sources) - len(internal_sources)
+        summary_parts = []
+        if highest_internal_similarity > 15.0:
+            summary_parts.append(f"Significant match with internal student work ({highest_internal_similarity}% similarity).")
+        if web_match_count > 0:
+            summary_parts.append(f"Found {web_match_count} matching web source(s) with {avg_web_score}% average web similarity.")
         else:
-            summary = (
-                f"Low plagiarism levels ({avg_score}%). "
-                f"{len(all_sources)} incidental matches found."
-            )
+            summary_parts.append("No significant matching web sources found.")
+
+        summary = " ".join(summary_parts)
 
         await doc.update({"$set": {
             "plagiarism_scan_status": ScanStatus.COMPLETED.value,
             "plagiarism_result": PlagiarismResult(
-                plagiarism_score=avg_score,
+                plagiarism_score=final_plagiarism_score,
                 summary=summary,
                 matched_sources=all_sources,
                 chunks=chunk_details,
             ).model_dump(),
             "scanned_at": datetime.now(timezone.utc),
         }})
+
+        # ----------------------------------------------------
+        # Step D: Global Ingestion
+        # ----------------------------------------------------
+        if current_hashes:
+            paper = SubmittedPaper(
+                document_id=str(doc.id),
+                user_id=doc.user_id,
+                extracted_text=text,
+                ngram_hashes=list(current_hashes),
+            )
+            await paper.insert()
 
     except Exception as exc:
         doc = await ScanDocument.get(doc_id)

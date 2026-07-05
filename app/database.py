@@ -5,6 +5,7 @@ from app.models.user import User
 from app.models.plan import Plan
 from app.models.payment import Payment
 from app.models.document import ScanDocument
+from app.models.repository import SubmittedPaper
 
 
 async def init_db():
@@ -14,7 +15,7 @@ async def init_db():
 
     await init_beanie(
         database=db,
-        document_models=[User, Plan, Payment, ScanDocument],
+        document_models=[User, Plan, Payment, ScanDocument, SubmittedPaper],
     )
 
     return client
