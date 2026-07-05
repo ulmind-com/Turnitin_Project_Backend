@@ -2,428 +2,214 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Similarity Report</title>
 <style>
-@page {
-    size: A4;
-    margin: 0;
-}
-body {
-    font-family: Helvetica, Arial, sans-serif;
-    color: #222;
-    margin: 0;
-    padding: 0;
-    font-size: 9pt;
-    line-height: 1.35;
-}
-.page { page-break-after: always; }
+    @page {
+        size: a4 portrait;
+        margin: 2cm 2.2cm 2cm 2.2cm;
+        @frame header_frame {
+            -pdf-frame-content: headerContent;
+            left: 50pt;
+            width: 495pt;
+            top: 20pt;
+            height: 28pt;
+        }
+        @frame footer_frame {
+            -pdf-frame-content: footerContent;
+            left: 50pt;
+            width: 495pt;
+            bottom: 14pt;
+            height: 28pt;
+        }
+    }
+    body {
+        font-family: Helvetica, Arial, sans-serif;
+        color: #222;
+        font-size: 9pt;
+        line-height: 1.35;
+    }
 
-.topbar {
-    border-bottom: 1px solid #ddd;
-    padding: 12px 36px 10px 36px;
-}
-.topbar-logo {
-    font-size: 11pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    letter-spacing: -0.3px;
-}
-.topbar-logo b { color: #e63946; font-weight: 700; }
-.topbar-page {
-    font-size: 7.5pt;
-    color: #888;
-    padding-left: 14px;
-}
-.topbar-right {
-    font-size: 7.5pt;
-    color: #888;
-    text-align: right;
-}
-.bottombar {
-    border-top: 1px solid #ddd;
-    padding: 10px 36px;
-    font-size: 7.5pt;
-    color: #888;
-}
-.content { padding: 0 36px; }
+    /* Header/Footer */
+    .bar-logo { font-size: 10pt; font-weight: 700; color: #1a1a2e; }
+    .bar-logo b { color: #e63946; }
+    .bar-sub { font-size: 7pt; color: #888; }
+    .bar-line { border-bottom: 1px solid #ddd; padding-bottom: 6pt; }
+    .bar-line-top { border-top: 1px solid #ddd; padding-top: 6pt; }
 
-/* Cover */
-.cover-spacer { height: 220px; }
-.cover-author {
-    font-size: 22pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    line-height: 1.15;
-    margin-bottom: 8px;
-}
-.cover-docname {
-    font-size: 16pt;
-    font-weight: 700;
-    color: #333;
-    line-height: 1.2;
-    margin-bottom: 16px;
-}
-.section-line {
-    border-bottom: 1px solid #ddd;
-    margin-top: 24px;
-    margin-bottom: 16px;
-}
-.section-title {
-    font-size: 11pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    margin-bottom: 14px;
-}
-.field-label {
-    font-size: 7.5pt;
-    color: #999;
-    margin-bottom: 1px;
-    margin-top: 8px;
-}
-.field-value {
-    font-size: 9pt;
-    color: #222;
-    font-weight: 600;
-}
-.stat-box {
-    border: 1px solid #e8e8e8;
-    padding: 6px 14px;
-    margin-bottom: 3px;
-    font-size: 9pt;
-    color: #333;
-}
-.stat-box b { font-size: 10pt; font-weight: 700; }
+    /* Cover */
+    .cover-title { font-size: 20pt; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+    .cover-sub { font-size: 13pt; font-weight: 600; color: #444; margin-top: 4pt; }
+    .sect-head { font-size: 10pt; font-weight: 700; color: #1a1a2e; border-top: 1px solid #ddd; padding-top: 10pt; margin-top: 14pt; }
+    .lbl { font-size: 7pt; color: #999; margin-top: 6pt; }
+    .val { font-size: 8.5pt; color: #222; font-weight: 600; }
+    .stat-cell { border: 1px solid #e0e0e0; padding: 4pt 10pt; font-size: 8.5pt; color: #333; text-align: right; }
+    .stat-cell b { font-size: 9pt; }
 
-/* Overview */
-.sim-big {
-    font-size: 26pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    line-height: 1.1;
-    margin-bottom: 4px;
-}
-.sim-subdesc {
-    font-size: 8pt;
-    color: #666;
-    margin-bottom: 16px;
-}
-.sub-heading {
-    font-size: 11pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    margin-bottom: 10px;
-    margin-top: 0;
-}
-.filtered-heading {
-    font-size: 10pt;
-    font-weight: 700;
-    color: #1a1a2e;
-    margin-top: 14px;
-    margin-bottom: 6px;
-}
+    /* Overview */
+    .big-score { font-size: 22pt; font-weight: 700; color: #1a1a2e; line-height: 1.1; }
+    .score-desc { font-size: 7.5pt; color: #666; margin-top: 2pt; margin-bottom: 10pt; }
+    .sub-head { font-size: 10pt; font-weight: 700; color: #1a1a2e; margin-bottom: 6pt; }
+    .mg-label { font-size: 8pt; font-weight: 700; color: #222; }
+    .mg-pct { font-size: 8pt; color: #555; }
+    .mg-desc { font-size: 6.5pt; color: #999; margin-bottom: 6pt; }
+    .ts-row { font-size: 8pt; color: #555; margin-bottom: 3pt; }
+    .ts-pct { font-weight: 700; color: #333; }
+    .flag-box { background: #e8f4f8; border: 1px solid #c5dfe8; padding: 8pt 10pt; font-size: 7pt; color: #2c5f7c; line-height: 1.5; margin-top: 6pt; }
 
-/* Match group rows */
-.mg-row { margin-bottom: 10px; }
-.mg-dot {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    vertical-align: middle;
-    margin-right: 6px;
-}
-.mg-label {
-    font-size: 8.5pt;
-    font-weight: 700;
-    color: #222;
-    vertical-align: middle;
-}
-.mg-pct {
-    font-size: 8.5pt;
-    color: #555;
-    vertical-align: middle;
-}
-.mg-desc {
-    font-size: 7pt;
-    color: #999;
-    margin-left: 20px;
-}
+    /* Sources */
+    .src-badge { display: inline; font-size: 6.5pt; font-weight: 700; color: #fff; padding: 2pt 7pt; }
+    .src-badge-s { background: #e63946; }
+    .src-badge-i { background: #37474f; }
+    .src-title { font-size: 8.5pt; font-weight: 600; color: #222; }
+    .src-pct { font-size: 8.5pt; font-weight: 700; color: #222; text-align: right; }
+    .src-entry { border-bottom: 1px solid #f0f0f0; padding: 6pt 0 4pt 0; }
 
-/* Top Sources percentages */
-.ts-row {
-    font-size: 8.5pt;
-    color: #555;
-    margin-bottom: 4px;
-}
-.ts-pct {
-    font-weight: 700;
-    color: #333;
-    display: inline-block;
-    width: 26px;
-}
-
-/* Integrity flags */
-.flag-info {
-    background: #e8f4f8;
-    border: 1px solid #c5dfe8;
-    padding: 12px 16px;
-    font-size: 8pt;
-    color: #2c5f7c;
-    line-height: 1.5;
-    margin-top: 8px;
-}
-
-.sep-line {
-    border-top: 1px solid #e0e0e0;
-    margin-top: 18px;
-    margin-bottom: 16px;
-}
-
-/* Sources list */
-.src-num {
-    display: inline-block;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    color: #fff;
-    font-size: 8pt;
-    font-weight: 700;
-    text-align: center;
-    line-height: 22px;
-    vertical-align: middle;
-}
-.src-badge {
-    display: inline-block;
-    font-size: 7pt;
-    font-weight: 700;
-    color: #fff;
-    padding: 3px 10px;
-    border-radius: 3px;
-    vertical-align: middle;
-    margin-left: 8px;
-}
-.src-badge-student { background: #e63946; }
-.src-badge-internet { background: #37474f; }
-.src-title {
-    font-size: 9pt;
-    font-weight: 600;
-    color: #222;
-    margin-top: 4px;
-}
-.src-pct {
-    font-size: 9pt;
-    font-weight: 600;
-    color: #222;
-    text-align: right;
-}
-.src-entry {
-    padding: 10px 0 8px 0;
-    border-bottom: 1px solid #f0f0f0;
-}
+    .sep { border-top: 1px solid #e0e0e0; margin-top: 10pt; padding-top: 10pt; }
+    .filt-head { font-size: 9pt; font-weight: 700; color: #1a1a2e; margin-top: 8pt; margin-bottom: 4pt; }
 </style>
 </head>
 <body>
 
-<!-- ══════════ COVER PAGE ══════════ -->
-<div class="page">
-    <table style="width:100%;" cellpadding="0" cellspacing="0">
-        <tr><td class="topbar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td style="width:50%;"><span class="topbar-logo">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview - Cover Page</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
-
-    <div class="content">
-        <div class="cover-spacer"></div>
-        <div class="cover-author">{{ file_name }}</div>
-        <div class="cover-docname">Plagiarism Similarity Report</div>
-
-        <div class="section-line"></div>
-        <div class="section-title">Document Details</div>
-
-        <table style="width:100%;" cellpadding="0" cellspacing="0">
-            <tr>
-                <td style="width:58%; vertical-align:top;">
-                    <div class="field-label">Submission ID</div>
-                    <div class="field-value">{{ document_id }}</div>
-                    <div class="field-label">Submission Date</div>
-                    <div class="field-value">{{ scanned_at }}</div>
-                    <div class="field-label">File Name</div>
-                    <div class="field-value">{{ file_name }}</div>
-                    <div class="field-label">File Type</div>
-                    <div class="field-value">{{ file_type }}</div>
-                </td>
-                <td style="width:42%; vertical-align:top; padding-left:30px; padding-top:8px;">
-                    <div class="stat-box"><b>{{ page_count }}</b> Pages</div>
-                    <div class="stat-box"><b>{{ word_count }}</b> Words</div>
-                    <div class="stat-box"><b>{{ char_count }}</b> Characters</div>
-                </td>
-            </tr>
-        </table>
+<!-- Shared header/footer (xhtml2pdf frames) -->
+<div id="headerContent">
+    <div class="bar-line">
+        <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
+            <td><span class="bar-logo">NAK<b>Detect</b></span> <span class="bar-sub">Integrity Overview</span></td>
+            <td style="text-align:right;"><span class="bar-sub">Submission ID &nbsp; {{ document_id }}</span></td>
+        </tr></table>
     </div>
-
-    <table style="width:100%; position:absolute; bottom:0;" cellpadding="0" cellspacing="0">
-        <tr><td class="bottombar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td><span class="topbar-logo" style="font-size:9pt;">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview - Cover Page</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
 </div>
+<div id="footerContent">
+    <div class="bar-line-top">
+        <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
+            <td><span class="bar-logo" style="font-size:8pt;">NAK<b>Detect</b></span> <span class="bar-sub">Integrity Overview</span></td>
+            <td style="text-align:right;"><span class="bar-sub">Submission ID &nbsp; {{ document_id }}</span></td>
+        </tr></table>
+    </div>
+</div>
+
+<!-- ══════════ COVER PAGE ══════════ -->
+<div style="margin-top: 5.5cm;">
+    <div class="cover-title">{{ file_name }}</div>
+    <div class="cover-sub">Plagiarism Similarity Report</div>
+</div>
+
+<div class="sect-head">Document Details</div>
+<table style="width:100%;" cellpadding="0" cellspacing="0">
+    <tr>
+        <td style="width:55%; vertical-align:top;">
+            <div class="lbl">Submission ID</div>
+            <div class="val">{{ document_id }}</div>
+            <div class="lbl">Submission Date</div>
+            <div class="val">{{ scanned_at }}</div>
+            <div class="lbl">File Name</div>
+            <div class="val">{{ file_name }}</div>
+            <div class="lbl">File Type</div>
+            <div class="val">{{ file_type }}</div>
+        </td>
+        <td style="width:45%; vertical-align:top; padding-left:20pt;">
+            <table cellpadding="0" cellspacing="0" style="width:100%; margin-top:6pt;">
+                <tr><td class="stat-cell"><b>{{ page_count }}</b> Pages</td></tr>
+                <tr><td class="stat-cell"><b>{{ word_count }}</b> Words</td></tr>
+                <tr><td class="stat-cell"><b>{{ char_count }}</b> Characters</td></tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<pdf:nextpage />
 
 <!-- ══════════ SIMILARITY OVERVIEW ══════════ -->
-<div class="page">
-    <table style="width:100%;" cellpadding="0" cellspacing="0">
-        <tr><td class="topbar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td style="width:50%;"><span class="topbar-logo">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
+<div class="big-score">{{ overall_plagiarism_score }}% &nbsp; Overall Similarity</div>
+<div class="score-desc">The combined total of all matches, including overlapping sources, for each database.</div>
 
-    <div class="content" style="padding-top:24px;">
-        <div class="sim-big">{{ overall_plagiarism_score }}% &nbsp; Overall Similarity</div>
-        <div class="sim-subdesc">The combined total of all matches, including overlapping sources, for each database.</div>
+{% if filtered_sections %}
+<div class="filt-head">Filtered from the Report</div>
+{% for section in filtered_sections %}
+<div style="font-size:7.5pt; color:#555; margin-left:6pt;">&#9632; {{ section }}</div>
+{% endfor %}
+{% endif %}
 
-        {% if filtered_sections %}
-        <div class="filtered-heading">Filtered from the Report</div>
-        {% for section in filtered_sections %}
-        <div style="font-size:8pt; color:#555; padding-left:8px; margin-bottom:2px;">&#9656; {{ section }}</div>
-        {% endfor %}
-        {% endif %}
-
-        <table style="width:100%; margin-top:20px;" cellpadding="0" cellspacing="0">
-            <tr>
-                <td style="width:55%; vertical-align:top;">
-                    <div class="sub-heading">Match Groups</div>
-                    <div class="mg-row">
-                        <span class="mg-dot" style="background:#e63946;"></span>
-                        <span class="mg-label">{{ not_cited_count }} Not Cited or Quoted</span>
-                        <span class="mg-pct"> {{ not_cited_pct }}%</span>
-                        <div class="mg-desc">Matches with neither in-text citation nor quotation marks</div>
-                    </div>
-                    <div class="mg-row">
-                        <span class="mg-dot" style="background:#f97316;"></span>
-                        <span class="mg-label">{{ missing_quote_count }} Missing Quotations</span>
-                        <span class="mg-pct"> {{ missing_quote_pct }}%</span>
-                        <div class="mg-desc">Matches that are still very similar to source material</div>
-                    </div>
-                    <div class="mg-row">
-                        <span class="mg-dot" style="background:#eab308;"></span>
-                        <span class="mg-label">{{ missing_citation_count }} Missing Citation</span>
-                        <span class="mg-pct"> {{ missing_citation_pct }}%</span>
-                        <div class="mg-desc">Matches that have quotation marks, but no in-text citation</div>
-                    </div>
-                    <div class="mg-row">
-                        <span class="mg-dot" style="background:#22c55e;"></span>
-                        <span class="mg-label">{{ cited_quoted_count }} Cited and Quoted</span>
-                        <span class="mg-pct"> {{ cited_quoted_pct }}%</span>
-                        <div class="mg-desc">Matches with in-text citation present, but no quotation marks</div>
-                    </div>
-                </td>
-                <td style="width:45%; vertical-align:top; padding-left:30px;">
-                    <div class="sub-heading">Top Sources</div>
-                    <div class="ts-row"><span class="ts-pct">{{ internet_pct }}%</span> &#9679; Internet sources</div>
-                    <div class="ts-row"><span class="ts-pct">{{ publication_pct }}%</span> &#9632; Publications</div>
-                    <div class="ts-row"><span class="ts-pct">{{ student_pct }}%</span> &#9650; Submitted works (Student Papers)</div>
-                </td>
-            </tr>
-        </table>
-
-        <div class="sep-line"></div>
-
-        <div class="sub-heading">Integrity Flags</div>
-        <div style="font-size: 9pt; font-weight: 700; color: #222; margin-bottom: 6px;">{{ integrity_flag_count }} Integrity Flags for Review</div>
-
-        {% if integrity_flags %}
-            {% for flag in integrity_flags %}
-            <div class="flag-info" style="background:#fff8e1; border-color:#ffe082; color:#6d4c00;">
-                <b>{{ flag.type }}:</b> {{ flag.description }}
+<table style="width:100%; margin-top:14pt;" cellpadding="0" cellspacing="0">
+    <tr>
+        <td style="width:52%; vertical-align:top;">
+            <div class="sub-head">Match Groups</div>
+            <div>
+                <span style="color:#e63946; font-size:10pt;">&#9679;</span>
+                <span class="mg-label">{{ not_cited_count }} Not Cited or Quoted</span>
+                <span class="mg-pct">{{ not_cited_pct }}%</span>
+                <div class="mg-desc">Matches with neither in-text citation nor quotation marks</div>
             </div>
-            {% endfor %}
-        {% else %}
-        <div class="flag-info">
-            Our system's algorithms look deeply at a document for any inconsistencies that would set it apart from a normal submission. If we notice something strange, we flag it for you to review.<br/><br/>
-            A flag is not necessarily an indicator of a problem. However, we'd recommend you focus your attention there for further review.
-        </div>
-        {% endif %}
-    </div>
+            <div>
+                <span style="color:#f97316; font-size:10pt;">&#9679;</span>
+                <span class="mg-label">{{ missing_quote_count }} Missing Quotations</span>
+                <span class="mg-pct">{{ missing_quote_pct }}%</span>
+                <div class="mg-desc">Matches that are still very similar to source material</div>
+            </div>
+            <div>
+                <span style="color:#eab308; font-size:10pt;">&#9679;</span>
+                <span class="mg-label">{{ missing_citation_count }} Missing Citation</span>
+                <span class="mg-pct">{{ missing_citation_pct }}%</span>
+                <div class="mg-desc">Matches that have quotation marks, but no in-text citation</div>
+            </div>
+            <div>
+                <span style="color:#22c55e; font-size:10pt;">&#9679;</span>
+                <span class="mg-label">{{ cited_quoted_count }} Cited and Quoted</span>
+                <span class="mg-pct">{{ cited_quoted_pct }}%</span>
+                <div class="mg-desc">Matches with in-text citation present, but no quotation marks</div>
+            </div>
+        </td>
+        <td style="width:48%; vertical-align:top; padding-left:24pt;">
+            <div class="sub-head">Top Sources</div>
+            <div class="ts-row"><span class="ts-pct">{{ internet_pct }}%</span> &nbsp; &#9679; Internet sources</div>
+            <div class="ts-row"><span class="ts-pct">{{ publication_pct }}%</span> &nbsp; &#9632; Publications</div>
+            <div class="ts-row"><span class="ts-pct">{{ student_pct }}%</span> &nbsp; &#9650; Submitted works (Student Papers)</div>
+        </td>
+    </tr>
+</table>
 
-    <table style="width:100%; position:absolute; bottom:0;" cellpadding="0" cellspacing="0">
-        <tr><td class="bottombar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td><span class="topbar-logo" style="font-size:9pt;">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
-</div>
-
-<!-- ══════════ TOP SOURCES LIST ══════════ -->
-{% if matched_sources %}
-<div class="page">
-    <table style="width:100%;" cellpadding="0" cellspacing="0">
-        <tr><td class="topbar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td style="width:50%;"><span class="topbar-logo">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
-
-    <div class="content" style="padding-top:20px;">
-        <div class="sub-heading">Top Sources</div>
-        <div style="font-size:7.5pt; color:#888; margin-bottom:14px;">The sources with the highest number of matches within the submission. Overlapping sources will not be displayed.</div>
-
-        {% for source in matched_sources %}
-        <div class="src-entry">
-            <table style="width:100%;" cellpadding="0" cellspacing="0">
-                <tr>
-                    <td style="width:100%; vertical-align:top;">
-                        {% if loop.index <= 2 %}
-                        <span class="src-num" style="background:#e63946;">{{ loop.index }}</span>
-                        {% elif loop.index <= 4 %}
-                        <span class="src-num" style="background:#f97316;">{{ loop.index }}</span>
-                        {% elif loop.index <= 6 %}
-                        <span class="src-num" style="background:#22c55e;">{{ loop.index }}</span>
-                        {% elif loop.index <= 8 %}
-                        <span class="src-num" style="background:#14b8a6;">{{ loop.index }}</span>
-                        {% else %}
-                        <span class="src-num" style="background:#6366f1;">{{ loop.index }}</span>
-                        {% endif %}
-
-                        {% if source.source_type == 'student' %}
-                        <span class="src-badge src-badge-student">Student papers</span>
-                        {% else %}
-                        <span class="src-badge src-badge-internet">Internet</span>
-                        {% endif %}
-
-                        <span class="src-pct" style="float:right;">{{ source.similarity_pct }}%</span>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="src-title">{{ source.title }}</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
+<div class="sep">
+    <div class="sub-head">Integrity Flags</div>
+    <div style="font-size:8pt; font-weight:700; color:#222; margin-bottom:4pt;">{{ integrity_flag_count }} Integrity Flags for Review</div>
+    {% if integrity_flags %}
+        {% for flag in integrity_flags %}
+        <div class="flag-box" style="background:#fff8e1; border-color:#ffe082; color:#6d4c00;"><b>{{ flag.type }}:</b> {{ flag.description }}</div>
         {% endfor %}
-    </div>
-
-    <table style="width:100%; position:absolute; bottom:0;" cellpadding="0" cellspacing="0">
-        <tr><td class="bottombar">
-            <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-                <td><span class="topbar-logo" style="font-size:9pt;">NAK<b>Detect</b></span><span class="topbar-page">Integrity Overview</span></td>
-                <td class="topbar-right">Submission ID &nbsp; {{ document_id }}</td>
-            </tr></table>
-        </td></tr>
-    </table>
+    {% else %}
+    <div class="flag-box">Our system's algorithms look deeply at a document for any inconsistencies that would set it apart from a normal submission. If we notice something strange, we flag it for you to review.<br/><br/>A flag is not necessarily an indicator of a problem. However, we'd recommend you focus your attention there for further review.</div>
+    {% endif %}
 </div>
+
+{% if matched_sources %}
+<pdf:nextpage />
+
+<!-- ══════════ TOP SOURCES ══════════ -->
+<div class="sub-head">Top Sources</div>
+<div style="font-size:7pt; color:#888; margin-bottom:10pt;">The sources with the highest number of matches within the submission. Overlapping sources will not be displayed.</div>
+
+{% for source in matched_sources %}
+<div class="src-entry">
+    <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
+        <td style="width:24pt; vertical-align:top;">
+            {% if loop.index <= 3 %}
+            <span style="background:#e63946; color:#fff; font-size:7pt; font-weight:700; padding:2pt 5pt;">{{ loop.index }}</span>
+            {% elif loop.index <= 6 %}
+            <span style="background:#22c55e; color:#fff; font-size:7pt; font-weight:700; padding:2pt 5pt;">{{ loop.index }}</span>
+            {% else %}
+            <span style="background:#14b8a6; color:#fff; font-size:7pt; font-weight:700; padding:2pt 5pt;">{{ loop.index }}</span>
+            {% endif %}
+        </td>
+        <td style="vertical-align:top;">
+            {% if source.source_type == 'student' %}
+            <span class="src-badge src-badge-s">Student papers</span>
+            {% else %}
+            <span class="src-badge src-badge-i">Internet</span>
+            {% endif %}
+        </td>
+        <td class="src-pct" style="width:40pt;">{{ source.similarity_pct }}%</td>
+    </tr></table>
+    <div class="src-title" style="margin-top:2pt;">{{ source.title }}</div>
+</div>
+{% endfor %}
 {% endif %}
 
 </body>
