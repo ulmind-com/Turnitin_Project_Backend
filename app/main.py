@@ -49,24 +49,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS Middleware ──
-origins = [org.strip() for org in settings.ALLOWED_ORIGINS.split(",") if org.strip()]
-if "*" in origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# ── CORS Middleware (fully open) ──
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+)
 
 # ── Register Routers ──
 app.include_router(auth_router)
