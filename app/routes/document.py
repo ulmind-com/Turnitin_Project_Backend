@@ -1,6 +1,6 @@
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
 from beanie import PydanticObjectId
 
 from app.models.user import User
@@ -13,7 +13,8 @@ from app.schemas.document import (
     AnalysisQueuedResponse,
 )
 from app.services.parser_service import parse_document
-from app.utils.dependencies import get_current_user, get_arq_pool
+from app.utils.dependencies import get_current_user
+from app.services.scanner_service import analyze_ai_job, analyze_plagiarism_job
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -117,7 +118,7 @@ async def upload_document(
 )
 async def trigger_ai_analysis(
     doc_id: str,
-    arq_pool=Depends(get_arq_pool),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -136,14 +137,14 @@ async def trigger_ai_analysis(
             detail=f"AI analysis is already {doc.ai_scan_status.value}.",
         )
 
-    job = await arq_pool.enqueue_job("analyze_ai_job", doc_id)
-
     # Mark queued immediately so duplicate triggers are blocked
     await doc.update({"$set": {"ai_scan_status": ScanStatus.QUEUED.value}})
 
+    background_tasks.add_task(analyze_ai_job, doc_id)
+
     return AnalysisQueuedResponse(
         document_id=doc_id,
-        job_id=job.job_id,
+        job_id="background",
         status=ScanStatus.QUEUED.value,
         message="AI detection job queued. Poll GET /{doc_id} for status updates.",
     )
@@ -159,7 +160,7 @@ async def trigger_ai_analysis(
 )
 async def trigger_plagiarism_analysis(
     doc_id: str,
-    arq_pool=Depends(get_arq_pool),
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -178,13 +179,13 @@ async def trigger_plagiarism_analysis(
             detail=f"Plagiarism analysis is already {doc.plagiarism_scan_status.value}.",
         )
 
-    job = await arq_pool.enqueue_job("analyze_plagiarism_job", doc_id)
-
     await doc.update({"$set": {"plagiarism_scan_status": ScanStatus.QUEUED.value}})
+
+    background_tasks.add_task(analyze_plagiarism_job, doc_id)
 
     return AnalysisQueuedResponse(
         document_id=doc_id,
-        job_id=job.job_id,
+        job_id="background",
         status=ScanStatus.QUEUED.value,
         message="Plagiarism detection job queued. Poll GET /{doc_id} for status updates.",
     )

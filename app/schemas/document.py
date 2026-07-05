@@ -44,6 +44,7 @@ class UploadResponse(BaseModel):
 class AnalysisQueuedResponse(BaseModel):
     """Returned when an analysis job is successfully enqueued."""
     document_id: str
-    job_id: str
+    job_id: Optional[str] = None
     status: str
     message: str
+

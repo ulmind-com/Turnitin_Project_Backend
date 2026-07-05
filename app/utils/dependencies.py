@@ -59,6 +59,4 @@ async def require_admin(
     return current_user
 
 
-async def get_arq_pool(request: Request):
-    """Inject the ARQ Redis pool stored on app state at startup."""
-    return request.app.state.arq_pool
+
