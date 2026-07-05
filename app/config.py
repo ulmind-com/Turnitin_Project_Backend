@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # Server
     PORT: int = 8000
     ENVIRONMENT: str = "development"
+    ALLOWED_ORIGINS: str = "*"
 
     # Database
     MONGODB_URI: str = ""
