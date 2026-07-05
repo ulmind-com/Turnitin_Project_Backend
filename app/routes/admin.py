@@ -417,6 +417,29 @@ async def get_document_details(
     }
 
 
+@router.delete("/documents/{document_id}")
+async def admin_delete_document(
+    document_id: str,
+    admin: User = Depends(require_admin),
+):
+    """Admin: Delete any document and its repository entry."""
+    from app.models.repository import SubmittedPaper
+
+    doc = await ScanDocument.get(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    file_name = doc.original_file_name
+
+    # Clean up internal repository
+    await SubmittedPaper.find(
+        SubmittedPaper.document_id == document_id
+    ).delete()
+
+    await doc.delete()
+    return {"message": f"Document '{file_name}' deleted by admin."}
+
+
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
 async def _build_payment_list(payments: list[Payment]) -> AdminPaymentListResponse:

@@ -163,8 +163,13 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
         internal_sources = []
 
         if current_hashes:
+            # Exclude ALL papers from the same user to prevent self-plagiarism
+            # (e.g., user re-uploads same file → should NOT match against themselves)
             matching_papers = await SubmittedPaper.find(
-                {"ngram_hashes": {"$in": list(current_hashes)}, "document_id": {"$ne": doc_id}}
+                {
+                    "ngram_hashes": {"$in": list(current_hashes)},
+                    "user_id": {"$ne": doc.user_id},
+                }
             ).to_list()
 
             for paper in matching_papers:

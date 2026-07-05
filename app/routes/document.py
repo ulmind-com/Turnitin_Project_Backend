@@ -491,3 +491,32 @@ async def save_document_grade(
 
     return {"message": "Grade and feedback updated successfully."}
 
+
+# ── DELETE /{document_id} ──────────────────────────────────────────────────
+
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a document and its associated repository entry.
+    Users can only delete their own documents.
+    """
+    doc = await ScanDocument.get(document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own documents.")
+
+    # Also remove from the internal plagiarism repository
+    from app.models.repository import SubmittedPaper
+    await SubmittedPaper.find(
+        SubmittedPaper.document_id == document_id
+    ).delete()
+
+    await doc.delete()
+
+    return {"message": f"Document '{doc.original_file_name}' deleted successfully."}
