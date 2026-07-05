@@ -30,10 +30,10 @@ async def search_web_for_chunk(chunk_text: str, key_phrases: list[str]) -> list[
 
     for phrase in key_phrases[:2]:  # limit to 2 searches per chunk for speed
         try:
-            # Use the phrase as a search query, wrapped in quotes for exact match
-            query = f'"{phrase}"'
+            # Do NOT use exact match quotes, let Tavily's semantic search do the work.
+            # Exact matching is too brittle and often returns 0 results for slightly modified text.
             response = await client.search(
-                query=query,
+                query=phrase,
                 search_depth="basic",
                 max_results=3,
                 include_raw_content=False,

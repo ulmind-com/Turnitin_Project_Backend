@@ -150,21 +150,21 @@ def compute_text_heuristics(text: str) -> dict:
 
 
 def extract_key_phrases(text: str, max_phrases: int = 3) -> list[str]:
-    """Extract short key phrases for Tavily web search queries."""
-    clean = re.sub(r"[^\w\s]", "", text.lower())
-    words = clean.split()
-
-    if len(words) < 4:
+    """Extract short key phrases (original formatting) for Tavily web search queries."""
+    sentences = split_into_sentences(text)
+    if not sentences:
         return [text[:100]]
 
+    # Sort sentences by length (longest first) as they are more likely to be unique/searchable
+    sorted_sentences = sorted(sentences, key=len, reverse=True)
+    
     phrases = []
-    phrase_len = min(6, len(words) // 2)
+    for s in sorted_sentences[:max_phrases]:
+        # Take the first 10-12 words of the sentence to keep the query concise but unique
+        words = s.split()
+        if len(words) > 5:
+            phrases.append(" ".join(words[:12]))
+        else:
+            phrases.append(s)
 
-    if phrase_len >= 3:
-        phrases.append(" ".join(words[:phrase_len]))
-        mid = len(words) // 2
-        phrases.append(" ".join(words[mid: mid + phrase_len]))
-        if len(words) > phrase_len * 2:
-            phrases.append(" ".join(words[-phrase_len:]))
-
-    return phrases[:max_phrases]
+    return phrases if phrases else [text[:100]]
