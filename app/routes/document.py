@@ -76,21 +76,24 @@ async def upload_document(
             detail="Could not extract meaningful text from the document",
         )
 
-    # Deduct 1 credit
-    current_user.credits -= 1
-    await current_user.save()
+    # Deduct credit and insert document within a database transaction to ensure atomicity
+    client = User.get_motor_collection().database.client
+    async with client.start_session() as session:
+        async with session.start_transaction():
+            # Deduct 1 credit atomically on the database level to prevent race conditions
+            await current_user.update({"$inc": {"credits": -1}}, session=session)
 
-    # Create document record
-    doc = ScanDocument(
-        user_id=str(current_user.id),
-        original_file_name=filename,
-        file_type=file_type,
-        extracted_text=extracted_text,
-        scan_status=ScanStatus.QUEUED,
-    )
-    await doc.insert()
+            # Create document record
+            doc = ScanDocument(
+                user_id=str(current_user.id),
+                original_file_name=filename,
+                file_type=file_type,
+                extracted_text=extracted_text,
+                scan_status=ScanStatus.QUEUED,
+            )
+            await doc.insert(session=session)
 
-    # Start scan in background
+    # Start scan in background (only if transaction committed successfully)
     background_tasks.add_task(scan_document, doc)
 
     return DocumentResponse(
