@@ -92,9 +92,11 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
 
     # Count documents
     total_scans = await ScanDocument.find(ScanDocument.user_id == user_id).count()
+    # A scan is "completed" if BOTH engines have completed
     completed_scans = await ScanDocument.find(
         ScanDocument.user_id == user_id,
-        ScanDocument.scan_status == "completed",
+        ScanDocument.ai_scan_status == "completed",
+        ScanDocument.plagiarism_scan_status == "completed",
     ).count()
 
     # Check for pending payment
@@ -123,12 +125,22 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
 
     recent_documents = []
     for doc in recent_docs:
+        # Derive a combined scan_status for the frontend
+        if doc.ai_scan_status == "completed" and doc.plagiarism_scan_status == "completed":
+            scan_status = "completed"
+        elif doc.ai_scan_status == "failed" or doc.plagiarism_scan_status == "failed":
+            scan_status = "failed"
+        elif doc.ai_scan_status or doc.plagiarism_scan_status:
+            scan_status = "processing"
+        else:
+            scan_status = "pending"
+
         recent_documents.append({
             "id": str(doc.id),
             "original_file_name": doc.original_file_name,
-            "scan_status": doc.scan_status,
-            "plagiarism_score": doc.scan_result.plagiarism_score if doc.scan_result else 0,
-            "ai_score": doc.scan_result.ai_score if doc.scan_result else 0,
+            "scan_status": scan_status,
+            "plagiarism_score": doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0,
+            "ai_score": doc.ai_result.ai_score if doc.ai_result else 0,
             "created_at": doc.created_at.isoformat(),
         })
 

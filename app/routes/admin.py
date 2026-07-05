@@ -28,7 +28,8 @@ async def admin_dashboard(admin: User = Depends(require_admin)):
     total_users = await User.find(User.role == "user").count()
     total_scans = await ScanDocument.find().count()
     completed_scans = await ScanDocument.find(
-        ScanDocument.scan_status == "completed"
+        ScanDocument.ai_scan_status == "completed",
+        ScanDocument.plagiarism_scan_status == "completed",
     ).count()
     pending_payments = await Payment.find(
         Payment.status == PaymentStatus.PENDING
@@ -360,15 +361,25 @@ async def list_all_documents(admin: User = Depends(require_admin)):
     documents = []
     for doc in docs:
         user = await User.get(doc.user_id)
+        # Derive combined status
+        if doc.ai_scan_status == "completed" and doc.plagiarism_scan_status == "completed":
+            scan_status = "completed"
+        elif doc.ai_scan_status == "failed" or doc.plagiarism_scan_status == "failed":
+            scan_status = "failed"
+        elif doc.ai_scan_status or doc.plagiarism_scan_status:
+            scan_status = "processing"
+        else:
+            scan_status = "pending"
+
         documents.append({
             "id": str(doc.id),
             "user_id": doc.user_id,
             "user_email": user.email if user else "Unknown",
             "original_file_name": doc.original_file_name,
             "file_type": doc.file_type,
-            "scan_status": doc.scan_status,
-            "plagiarism_score": doc.scan_result.plagiarism_score if doc.scan_result else 0,
-            "ai_score": doc.scan_result.ai_score if doc.scan_result else 0,
+            "scan_status": scan_status,
+            "plagiarism_score": doc.plagiarism_result.plagiarism_score if doc.plagiarism_result else 0,
+            "ai_score": doc.ai_result.ai_score if doc.ai_result else 0,
             "scanned_at": doc.scanned_at.isoformat() if doc.scanned_at else None,
             "created_at": doc.created_at.isoformat(),
         })
@@ -395,8 +406,10 @@ async def get_document_details(
         "original_file_name": doc.original_file_name,
         "file_type": doc.file_type,
         "extracted_text": doc.extracted_text,
-        "scan_status": doc.scan_status,
-        "scan_result": doc.scan_result.model_dump() if doc.scan_result else None,
+        "ai_scan_status": doc.ai_scan_status.value if doc.ai_scan_status else None,
+        "plagiarism_scan_status": doc.plagiarism_scan_status.value if doc.plagiarism_scan_status else None,
+        "ai_result": doc.ai_result.model_dump() if doc.ai_result else None,
+        "plagiarism_result": doc.plagiarism_result.model_dump() if doc.plagiarism_result else None,
         "scanned_at": doc.scanned_at.isoformat() if doc.scanned_at else None,
         "created_at": doc.created_at.isoformat(),
     }

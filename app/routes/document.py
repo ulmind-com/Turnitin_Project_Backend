@@ -73,7 +73,7 @@ async def upload_document(
     finally:
         buffer.close()
 
-    raw_extracted_text, page_count = await parse_document(file_bytes, file_type)
+    raw_extracted_text, page_count = await parse_document(file_bytes, file_ext)
 
     if not raw_extracted_text or len(raw_extracted_text.strip()) < 20:
         raise HTTPException(
@@ -100,7 +100,7 @@ async def upload_document(
             doc = ScanDocument(
                 user_id=str(current_user.id),
                 original_file_name=filename,
-                file_type=file_type,
+                file_type=file_ext,
                 extracted_text=cleaned_text,
                 integrity_flags=integrity_flags,
                 metadata=metadata,
@@ -346,8 +346,8 @@ async def download_document_report(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Generate and stream a Turnitin-style PDF originality report.
-    Only available if both AI and plagiarism checks have completed.
+    Generate and stream a combined Turnitin-style PDF originality report.
+    Requires both AI and plagiarism checks to have completed.
     """
     doc = await ScanDocument.get(document_id)
     if not doc or doc.user_id != str(current_user.id):
@@ -381,6 +381,84 @@ async def download_document_report(
         headers={
             "Content-Disposition": f'attachment; filename="{report_filename}"'
         },
+    )
+
+
+# ── GET /{document_id}/download-report/plagiarism ───────────────────────────
+
+
+@router.get("/{document_id}/download-report/plagiarism")
+async def download_plagiarism_report(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate and download a Turnitin-style Plagiarism Similarity Report PDF."""
+    doc = await ScanDocument.get(document_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if doc.plagiarism_scan_status != ScanStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plagiarism scan has not completed yet.",
+        )
+
+    try:
+        from app.utils.report_generator import build_plagiarism_report_pdf
+        pdf_bytes = build_plagiarism_report_pdf(doc)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating plagiarism PDF: {str(e)}",
+        )
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    report_filename = f"Similarity_Report_{safe_filename.rsplit('.', 1)[0]}.pdf"
+
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{report_filename}"'},
+    )
+
+
+# ── GET /{document_id}/download-report/ai ────────────────────────────────────
+
+
+@router.get("/{document_id}/download-report/ai")
+async def download_ai_report(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate and download a Turnitin-style AI Writing Detection Report PDF."""
+    doc = await ScanDocument.get(document_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if doc.ai_scan_status != ScanStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI scan has not completed yet.",
+        )
+
+    try:
+        from app.utils.report_generator import build_ai_report_pdf
+        pdf_bytes = build_ai_report_pdf(doc)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating AI report PDF: {str(e)}",
+        )
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    report_filename = f"AI_Writing_Report_{safe_filename.rsplit('.', 1)[0]}.pdf"
+
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{report_filename}"'},
     )
 
 
