@@ -11,6 +11,32 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/api/user", tags=["User"])
 
 
+@router.get("/plans")
+async def list_plans():
+    """
+    Public endpoint — list all active plans with pricing and currency.
+    No authentication required. Used by the frontend pricing page.
+    """
+    plans = await Plan.find(Plan.is_active == True).sort("+display_order").to_list()
+    return {
+        "plans": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "slug": p.slug,
+                "credits": p.credits,
+                "price": p.price,
+                "currency": p.currency,
+                "currency_symbol": p.currency_symbol,
+                "description": p.description,
+                "features": p.features,
+                "display_order": p.display_order,
+            }
+            for p in plans
+        ],
+    }
+
+
 @router.get("/profile", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
     """Get the current user's profile with plan details."""
@@ -24,6 +50,8 @@ async def get_profile(current_user: User = Depends(get_current_user)):
                 "slug": plan.slug,
                 "credits": plan.credits,
                 "price": plan.price,
+                "currency": plan.currency,
+                "currency_symbol": plan.currency_symbol,
             }
 
     return UserResponse(

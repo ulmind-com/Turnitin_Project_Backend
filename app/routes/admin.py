@@ -7,6 +7,8 @@ from app.schemas.admin import (
     RejectPaymentRequest,
     EditCreditsRequest,
     AssignPlanRequest,
+    CreatePlanRequest,
+    UpdatePlanRequest,
     SuspendUserRequest,
     AdminUserResponse,
     AdminUserListResponse,
@@ -447,3 +449,157 @@ async def _build_payment_list(payments: list[Payment]) -> AdminPaymentListRespon
         payments=payment_responses,
         total=len(payment_responses),
     )
+
+
+# ─── Plan Management ─────────────────────────────────────────────────────────
+
+@router.get("/plans")
+async def list_plans_admin(admin: User = Depends(require_admin)):
+    """List all plans with full details (admin view)."""
+    plans = await Plan.find().sort("+display_order").to_list()
+    return {
+        "plans": [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "slug": p.slug,
+                "credits": p.credits,
+                "price": p.price,
+                "currency": p.currency,
+                "currency_symbol": p.currency_symbol,
+                "description": p.description,
+                "features": p.features,
+                "is_active": p.is_active,
+                "display_order": p.display_order,
+                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+            }
+            for p in plans
+        ],
+        "total": len(plans),
+    }
+
+
+@router.post("/plans", status_code=status.HTTP_201_CREATED)
+async def create_plan(
+    data: CreatePlanRequest,
+    admin: User = Depends(require_admin),
+):
+    """Create a new subscription plan."""
+    existing = await Plan.find_one(Plan.slug == data.slug)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Plan with slug '{data.slug}' already exists",
+        )
+
+    plan = Plan(
+        name=data.name,
+        slug=data.slug,
+        credits=data.credits,
+        price=data.price,
+        currency=data.currency,
+        currency_symbol=data.currency_symbol,
+        description=data.description,
+        features=data.features,
+        is_active=data.is_active,
+        display_order=data.display_order,
+    )
+    await plan.insert()
+
+    return {
+        "message": f"Plan '{plan.name}' created successfully.",
+        "plan": {
+            "id": str(plan.id),
+            "name": plan.name,
+            "slug": plan.slug,
+            "credits": plan.credits,
+            "price": plan.price,
+            "currency": plan.currency,
+            "currency_symbol": plan.currency_symbol,
+        },
+    }
+
+
+@router.put("/plans/{plan_id}")
+async def update_plan(
+    plan_id: str,
+    data: UpdatePlanRequest,
+    admin: User = Depends(require_admin),
+):
+    """
+    Update a plan's price, currency, features, credits, etc.
+    Only fields provided in the request body will be updated.
+    """
+    plan = await Plan.get(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    update_fields = {}
+    if data.name is not None:
+        update_fields["name"] = data.name
+    if data.credits is not None:
+        update_fields["credits"] = data.credits
+    if data.price is not None:
+        update_fields["price"] = data.price
+    if data.currency is not None:
+        update_fields["currency"] = data.currency
+    if data.currency_symbol is not None:
+        update_fields["currency_symbol"] = data.currency_symbol
+    if data.description is not None:
+        update_fields["description"] = data.description
+    if data.features is not None:
+        update_fields["features"] = data.features
+    if data.is_active is not None:
+        update_fields["is_active"] = data.is_active
+    if data.display_order is not None:
+        update_fields["display_order"] = data.display_order
+
+    if not update_fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+
+    update_fields["updated_at"] = datetime.now(timezone.utc)
+    await plan.update({"$set": update_fields})
+
+    # Reload
+    plan = await Plan.get(plan_id)
+    return {
+        "message": f"Plan '{plan.name}' updated successfully.",
+        "plan": {
+            "id": str(plan.id),
+            "name": plan.name,
+            "slug": plan.slug,
+            "credits": plan.credits,
+            "price": plan.price,
+            "currency": plan.currency,
+            "currency_symbol": plan.currency_symbol,
+            "description": plan.description,
+            "features": plan.features,
+            "is_active": plan.is_active,
+            "display_order": plan.display_order,
+        },
+    }
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(
+    plan_id: str,
+    admin: User = Depends(require_admin),
+):
+    """Delete a plan. Cannot delete if users have active subscriptions on it."""
+    plan = await Plan.get(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Check if any users are on this plan
+    active_users = await User.find(User.active_plan == plan_id).count()
+    if active_users > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete: {active_users} user(s) have this plan active. Deactivate it instead.",
+        )
+
+    await plan.delete()
+    return {"message": f"Plan '{plan.name}' deleted successfully."}
