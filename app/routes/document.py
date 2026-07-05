@@ -153,7 +153,13 @@ async def get_document_report(
             detail="Document not found",
         )
 
-    if doc.scan_status != "completed" or not doc.scan_result:
+    if doc.scan_status == ScanStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scan failed: {doc.scan_result.summary if doc.scan_result else 'Unknown error'}",
+        )
+
+    if doc.scan_status != ScanStatus.COMPLETED or not doc.scan_result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Scan is not yet completed",
