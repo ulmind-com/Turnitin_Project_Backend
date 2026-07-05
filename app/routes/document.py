@@ -11,6 +11,7 @@ from app.schemas.document import (
     DocumentListResponse,
     UploadResponse,
     AnalysisQueuedResponse,
+    GradeRequest,
 )
 from app.services.parser_service import parse_document
 from app.utils.dependencies import get_current_user
@@ -264,6 +265,8 @@ async def get_document(
         plagiarism_result=doc.plagiarism_result.model_dump() if doc.plagiarism_result else None,
         integrity_flags=doc.integrity_flags,
         metadata=doc.metadata,
+        grade=doc.grade,
+        feedback=doc.feedback,
         scanned_at=doc.scanned_at.isoformat() if doc.scanned_at else None,
         created_at=doc.created_at.isoformat(),
     )
@@ -379,3 +382,28 @@ async def download_document_report(
             "Content-Disposition": f'attachment; filename="{report_filename}"'
         },
     )
+
+
+# ── POST /{document_id}/grade ────────────────────────────────────────────────
+
+
+@router.post("/{document_id}/grade")
+async def save_document_grade(
+    document_id: str,
+    payload: GradeRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Save or update the instructor's numerical grade and feedback comments.
+    """
+    doc = await ScanDocument.get(document_id)
+    if not doc or doc.user_id != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    await doc.update({"$set": {
+        "grade": payload.grade,
+        "feedback": payload.feedback
+    }})
+
+    return {"message": "Grade and feedback updated successfully."}
+

@@ -62,6 +62,9 @@ class ScanDocument(Document):
     integrity_flags: list[dict] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
 
+    grade: Optional[float] = None
+    feedback: Optional[str] = None
+
     scanned_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

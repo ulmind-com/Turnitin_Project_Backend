@@ -25,6 +25,8 @@ class DocumentDetailResponse(BaseModel):
     plagiarism_result: dict | None = None
     integrity_flags: list[dict] = []
     metadata: dict = {}
+    grade: float | None = None
+    feedback: str | None = None
     scanned_at: str | None = None
     created_at: str
 
@@ -49,4 +51,10 @@ class AnalysisQueuedResponse(BaseModel):
     job_id: Optional[str] = None
     status: str
     message: str
+
+
+class GradeRequest(BaseModel):
+    grade: Optional[float] = None
+    feedback: Optional[str] = None
+
 
