@@ -7,8 +7,6 @@ from app.models.document import (
     AIResult, PlagiarismResult,
     MatchedSource, ChunkResult,
 )
-from app.models.repository import SubmittedPaper
-from app.utils.similarity_engine import generate_ngram_hashes, calculate_jaccard_similarity
 from app.utils.chunker import (
     create_overlapping_chunks,
     create_large_window_chunks,
@@ -156,38 +154,7 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             return
 
         # ----------------------------------------------------
-        # Step A: Internal Database Check (N-Gram & Jaccard)
-        # ----------------------------------------------------
-        current_hashes = generate_ngram_hashes(text, n=5)
-        highest_internal_similarity = 0.0
-        internal_sources = []
-
-        if current_hashes:
-            # Exclude ALL papers from the same user to prevent self-plagiarism
-            # (e.g., user re-uploads same file → should NOT match against themselves)
-            matching_papers = await SubmittedPaper.find(
-                {
-                    "ngram_hashes": {"$in": list(current_hashes)},
-                    "user_id": {"$ne": doc.user_id},
-                }
-            ).to_list()
-
-            for paper in matching_papers:
-                paper_hashes = set(paper.ngram_hashes)
-                sim = calculate_jaccard_similarity(current_hashes, paper_hashes)
-                if sim > 15.0:
-                    highest_internal_similarity = max(highest_internal_similarity, sim)
-                    internal_sources.append(MatchedSource(
-                        url="Submitted Work (Student Paper)",
-                        title=f"Student Paper {paper.document_id[:8]}",
-                        matched_text=paper.extracted_text[:300] + ("..." if len(paper.extracted_text) > 300 else ""),
-                        original_text=text[:200],
-                        similarity_score=sim,
-                        chunk_index=0,
-                    ))
-
-        # ----------------------------------------------------
-        # Step B: External Web Check
+        # Step A: External Web Check
         # ----------------------------------------------------
         chunks = create_overlapping_chunks(text, sentences_per_chunk=6, overlap_sentences=1)
         valid = []
@@ -214,14 +181,14 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             valid = [r for r in raw_results if isinstance(r, dict)]
 
         # ----------------------------------------------------
-        # Step C: Aggregation & Update
+        # Step B: Aggregation & Update
         # ----------------------------------------------------
         avg_web_score = round(sum(r["plagiarism_score"] for r in valid) / len(valid), 1) if valid else 0.0
-        final_plagiarism_score = max(avg_web_score, highest_internal_similarity)
+        final_plagiarism_score = avg_web_score
 
         # Deduplicate matched sources
-        all_sources: list[MatchedSource] = list(internal_sources)
-        seen_urls = {src.title for src in internal_sources}
+        all_sources: list[MatchedSource] = []
+        seen_urls = set()
 
         for r in valid:
             for src in r.get("matched_sources", []):
@@ -256,12 +223,9 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             for r in valid
         ]
 
-        web_match_count = len(all_sources) - len(internal_sources)
         summary_parts = []
-        if highest_internal_similarity > 15.0:
-            summary_parts.append(f"Significant match with internal student work ({highest_internal_similarity}% similarity).")
-        if web_match_count > 0:
-            summary_parts.append(f"Found {web_match_count} matching web source(s) with {avg_web_score}% average web similarity.")
+        if len(all_sources) > 0:
+            summary_parts.append(f"Found {len(all_sources)} matching web source(s) with {avg_web_score}% average web similarity.")
         else:
             summary_parts.append("No significant matching web sources found.")
 
@@ -277,18 +241,6 @@ async def analyze_plagiarism_job(doc_id: str) -> None:
             ).model_dump(),
             "scanned_at": datetime.now(timezone.utc),
         }})
-
-        # ----------------------------------------------------
-        # Step D: Global Ingestion
-        # ----------------------------------------------------
-        if current_hashes:
-            paper = SubmittedPaper(
-                document_id=str(doc.id),
-                user_id=doc.user_id,
-                extracted_text=text,
-                ngram_hashes=list(current_hashes),
-            )
-            await paper.insert()
 
     except Exception as exc:
         doc = await ScanDocument.get(doc_id)
