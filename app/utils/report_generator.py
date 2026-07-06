@@ -906,3 +906,48 @@ def build_report_pdf(doc: ScanDocument) -> bytes:
         original_pdf = _highlight_sentences_in_pdf(original_pdf, ai_sentences, COLOR_AI)
 
     return _merge_pdfs(summary_bytes, original_pdf)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  Public API: Build ONLY Highlighted Original Document (For Frontend Merging)
+# ────────────────────────────────────────────────────────────────────────────
+
+def build_highlighted_original_ai(doc: ScanDocument) -> bytes:
+    """Returns only the original document with AI highlights (no summary pages)."""
+    logger.info(f"Building AI highlighted original for {doc.original_file_name}")
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        raise ValueError("Could not process original document")
+
+    ai_sentences = _get_ai_sentences(doc)
+    if ai_sentences:
+        original_pdf = _highlight_sentences_in_pdf(original_pdf, ai_sentences, COLOR_AI)
+    return original_pdf
+
+def build_highlighted_original_plagiarism(doc: ScanDocument) -> bytes:
+    """Returns only the original document with Plagiarism highlights (no summary pages)."""
+    logger.info(f"Building Plagiarism highlighted original for {doc.original_file_name}")
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        raise ValueError("Could not process original document")
+
+    plag_texts = _get_plagiarism_texts(doc)
+    if plag_texts:
+        original_pdf = _highlight_text_in_pdf(original_pdf, plag_texts, COLOR_PLAGIARISM)
+    return original_pdf
+
+def build_highlighted_original_combined(doc: ScanDocument) -> bytes:
+    """Returns only the original document with BOTH Plagiarism and AI highlights."""
+    logger.info(f"Building Combined highlighted original for {doc.original_file_name}")
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        raise ValueError("Could not process original document")
+
+    plag_texts = _get_plagiarism_texts(doc)
+    if plag_texts:
+        original_pdf = _highlight_text_in_pdf(original_pdf, plag_texts, COLOR_PLAGIARISM)
+
+    ai_sentences = _get_ai_sentences(doc)
+    if ai_sentences:
+        original_pdf = _highlight_sentences_in_pdf(original_pdf, ai_sentences, COLOR_AI)
+    return original_pdf

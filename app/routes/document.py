@@ -478,6 +478,69 @@ async def download_ai_report(
     )
 
 
+# ── GET /{document_id}/download-highlighted/* (For Frontend PDF Merging) ─────
+
+@router.get("/{document_id}/download-highlighted")
+async def download_highlighted_combined(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Download ONLY the original PDF with combined highlights (No summary pages). For frontend merging."""
+    doc = await ScanDocument.get(document_id)
+    if not doc or (doc.user_id != str(current_user.id) and current_user.role != "admin"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    try:
+        from app.utils.report_generator import build_highlighted_original_combined
+        pdf_bytes = build_highlighted_original_combined(doc)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="Highlighted_{safe_filename}.pdf"'})
+
+
+@router.get("/{document_id}/download-highlighted/plagiarism")
+async def download_highlighted_plagiarism(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Download ONLY the original PDF with plagiarism highlights (No summary pages). For frontend merging."""
+    doc = await ScanDocument.get(document_id)
+    if not doc or (doc.user_id != str(current_user.id) and current_user.role != "admin"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    try:
+        from app.utils.report_generator import build_highlighted_original_plagiarism
+        pdf_bytes = build_highlighted_original_plagiarism(doc)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="Highlighted_Plagiarism_{safe_filename}.pdf"'})
+
+
+@router.get("/{document_id}/download-highlighted/ai")
+async def download_highlighted_ai(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Download ONLY the original PDF with AI highlights (No summary pages). For frontend merging."""
+    doc = await ScanDocument.get(document_id)
+    if not doc or (doc.user_id != str(current_user.id) and current_user.role != "admin"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    try:
+        from app.utils.report_generator import build_highlighted_original_ai
+        pdf_bytes = build_highlighted_original_ai(doc)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    safe_filename = "".join(c for c in doc.original_file_name if c.isalnum() or c in "._- ")
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="Highlighted_AI_{safe_filename}.pdf"'})
+
+
+
 # ── POST /{document_id}/grade ────────────────────────────────────────────────
 
 
