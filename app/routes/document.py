@@ -423,6 +423,11 @@ async def get_document_report(
             [c.model_dump() for c in doc.plagiarism_result.chunks]
             if doc.plagiarism_result
             else []
+        ),
+        "matched_sources": (
+            [s.model_dump() for s in doc.plagiarism_result.matched_sources]
+            if doc.plagiarism_result
+            else []
         )
     }
 
