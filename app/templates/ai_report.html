@@ -29,12 +29,10 @@
         line-height: 1.5;
     }
 
-    /* ── Header / Footer ── */
     .hdr-line { border-bottom: 1px solid #e5e5e5; padding-bottom: 5pt; }
     .ftr-line { border-top: 1px solid #e5e5e5; padding-top: 5pt; }
     .hdr-meta { font-size: 7.5pt; color: #999; }
 
-    /* ── Cover Page ── */
     .cover-title {
         font-size: 22pt; font-weight: 700; color: #1a1a2e;
         line-height: 1.2; margin-bottom: 4pt;
@@ -51,7 +49,6 @@
     }
     .stat-box b { font-size: 9.5pt; color: #222; }
 
-    /* ── AI Overview ── */
     .big-score {
         font-size: 26pt; font-weight: 700; color: #1a1a2e;
         line-height: 1.15; margin-bottom: 2pt;
@@ -61,20 +58,13 @@
     }
 
     .divider { border-top: 1px solid #eaeaea; margin-top: 16pt; margin-bottom: 16pt; }
-    .section-title { font-size: 13pt; font-weight: 700; color: #1a1a2e; margin-bottom: 12pt; }
 
-    /* ── Caution Panel ── */
+    /* ── Caution Panel — LIGHT BLUE like Turnitin ── */
     .caution-panel {
-        background: #edf5fa; border: 1px solid #d4e6ef;
-        padding: 12pt 16pt;
+        background: #e8f4fd; border: 1px solid #d0e4f0;
+        padding: 14pt 16pt;
     }
-    .caution-warn {
-        background: #fef9e7; border-color: #f5e6a3;
-    }
-    .caution-danger {
-        background: #fce4ec; border-color: #f8bbd0;
-    }
-    .caution-head { font-size: 9.5pt; font-weight: 700; color: #333; margin-bottom: 5pt; }
+    .caution-head { font-size: 9.5pt; font-weight: 700; color: #333; margin-bottom: 6pt; }
     .caution-body { font-size: 8pt; color: #555; line-height: 1.6; }
 
     /* ── AI Breakdown ── */
@@ -85,10 +75,6 @@
     /* ── Disclaimer ── */
     .disc-head { font-size: 10pt; font-weight: 700; color: #1a1a2e; margin-bottom: 5pt; }
     .disc-text { font-size: 7.5pt; color: #666; line-height: 1.7; }
-
-    /* ── Stat table ── */
-    .stat-label { font-size: 8.5pt; font-weight: 600; color: #444; padding: 5pt 10pt; border: 1px solid #e8e8e8; }
-    .stat-val { font-size: 8.5pt; color: #333; padding: 5pt 10pt; border: 1px solid #e8e8e8; text-align: right; }
 </style>
 </head>
 <body>
@@ -105,7 +91,7 @@
                 {% endif %}
             </td>
             <td style="text-align:center;">
-                <span class="hdr-meta">AI Writing Report</span>
+                <span class="hdr-meta">AI Writing Overview</span>
             </td>
             <td style="text-align:right;">
                 <span class="hdr-meta">Submission ID &nbsp; {{ document_id[:20] }}</span>
@@ -165,21 +151,18 @@
 <pdf:nextpage />
 
 <!-- ═══════════ AI WRITING OVERVIEW ═══════════ -->
-<table style="width:100%;" cellpadding="0" cellspacing="0">
+<div class="divider" style="margin-top:6pt;"></div>
+
+<table style="width:100%; margin-top:10pt;" cellpadding="0" cellspacing="0">
     <tr>
         <td style="width:52%; vertical-align:top;">
             <div class="big-score">{{ overall_ai_score }}% detected as AI</div>
             <div class="score-desc">The percentage indicates the combined amount of likely AI-generated text as well as likely AI-generated text that was also likely AI-paraphrased.</div>
         </td>
-        <td style="width:48%; vertical-align:top; padding-left:20pt;">
-            {% if overall_ai_score >= 76 %}
-            <div class="caution-panel caution-danger">
-            {% elif overall_ai_score >= 36 %}
-            <div class="caution-panel caution-warn">
-            {% else %}
+        <td style="width:8pt;"></td>
+        <td style="width:44%; vertical-align:top;">
             <div class="caution-panel">
-            {% endif %}
-                <div class="caution-head">{{ caution_level }}</div>
+                <div class="caution-head">Caution: {{ caution_level }}.</div>
                 <div class="caution-body">It is essential to understand the limitations of AI detection before making decisions about a student's work. We encourage you to learn more about our AI detection capabilities before using the tool.</div>
             </div>
         </td>
@@ -190,7 +173,7 @@
 <div class="divider"></div>
 
 <!-- AI-generated only -->
-<table style="width:100%; margin-bottom:14pt;" cellpadding="0" cellspacing="0"><tr>
+<table style="width:100%; margin-bottom:6pt;" cellpadding="0" cellspacing="0"><tr>
     <td style="width:24pt; vertical-align:top;">
         <img src="{{ icon_ai_gen }}" style="width:20pt; height:20pt;" />
     </td>
@@ -214,43 +197,6 @@
         <div class="ai-desc">Likely AI-generated text that was likely revised using an AI-paraphrase tool or word spinner.</div>
     </td>
 </tr></table>
-
-<!-- ── Heuristics Summary ── -->
-{% if burstiness is not none %}
-<div class="divider"></div>
-<div class="section-title">Statistical Analysis</div>
-<table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0">
-    <tr>
-        <td style="width:50%; vertical-align:top;">
-            <table cellpadding="0" cellspacing="0" style="width:95%;">
-                <tr>
-                    <td class="stat-label">Burstiness</td>
-                    <td class="stat-val" style="width:60pt;">{{ "%.3f"|format(burstiness) }}</td>
-                </tr>
-                <tr>
-                    <td class="stat-label">Vocabulary Diversity (TTR)</td>
-                    <td class="stat-val" style="width:60pt;">{{ "%.3f"|format(type_token_ratio) }}</td>
-                </tr>
-            </table>
-        </td>
-        <td style="width:50%; vertical-align:top; padding-left:10pt;">
-            <table cellpadding="0" cellspacing="0" style="width:95%;">
-                <tr>
-                    <td class="stat-label">Avg Sentence Length</td>
-                    <td class="stat-val" style="width:70pt;">{{ "%.1f"|format(avg_sentence_length) }} words</td>
-                </tr>
-                <tr>
-                    <td class="stat-label">AI Phrase Density</td>
-                    <td class="stat-val" style="width:70pt;">{{ "%.3f"|format(ai_phrase_density) }} /100w</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
-<div style="font-size:7pt; color:#bbb; margin-top:4pt;">
-    Human text baseline: Burstiness &ge; 0.50 &nbsp;|&nbsp; TTR &ge; 0.60 &nbsp;|&nbsp; AI-generated text typically shows: Burstiness &lt; 0.30, TTR &lt; 0.50
-</div>
-{% endif %}
 
 <!-- ── Disclaimer ── -->
 <div class="divider"></div>
