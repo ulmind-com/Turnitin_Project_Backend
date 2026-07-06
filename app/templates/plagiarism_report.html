@@ -24,16 +24,15 @@
 
     body {
         font-family: Helvetica, Arial, sans-serif;
-        color: #2d3436;
+        color: #333;
         font-size: 9pt;
-        line-height: 1.45;
+        line-height: 1.5;
     }
 
     /* ── Header / Footer ── */
-    .hdr-line { border-bottom: 1px solid #e0e0e0; padding-bottom: 5pt; }
-    .ftr-line { border-top: 1px solid #e0e0e0; padding-top: 5pt; }
-    .hdr-page { font-size: 7.5pt; color: #999; }
-    .hdr-subid { font-size: 7.5pt; color: #999; }
+    .hdr-line { border-bottom: 1px solid #e5e5e5; padding-bottom: 5pt; }
+    .ftr-line { border-top: 1px solid #e5e5e5; padding-top: 5pt; }
+    .hdr-meta { font-size: 7.5pt; color: #999; }
 
     /* ── Cover Page ── */
     .cover-title {
@@ -41,7 +40,7 @@
         line-height: 1.2; margin-bottom: 4pt;
     }
     .cover-sub {
-        font-size: 12pt; font-weight: 400; color: #666;
+        font-size: 12pt; font-weight: 400; color: #777;
         margin-bottom: 20pt;
     }
     .detail-label { font-size: 7pt; color: #aaa; text-transform: uppercase; letter-spacing: 0.3pt; margin-top: 7pt; }
@@ -54,64 +53,60 @@
 
     /* ── Similarity Overview ── */
     .big-score {
-        font-size: 26pt; font-weight: 700; color: #1a1a2e;
-        line-height: 1.15; margin-bottom: 2pt;
+        font-size: 28pt; font-weight: 700; color: #1a1a2e;
+        line-height: 1.15; margin-bottom: 3pt;
     }
     .score-desc {
-        font-size: 8pt; color: #777; margin-bottom: 14pt;
+        font-size: 8.5pt; color: #888; margin-bottom: 16pt; line-height: 1.5;
     }
 
     /* Filtered */
-    .filt-title { font-size: 11pt; font-weight: 700; color: #1a1a2e; margin-bottom: 5pt; }
-    .filt-item { font-size: 8.5pt; color: #555; margin-left: 8pt; margin-bottom: 2pt; }
+    .filt-title { font-size: 11pt; font-weight: 700; color: #1a1a2e; margin-bottom: 6pt; }
+    .filt-item { font-size: 8.5pt; color: #555; margin-left: 10pt; margin-bottom: 3pt; }
 
-    .divider { border-top: 1px solid #e8e8e8; margin-top: 14pt; margin-bottom: 14pt; }
+    .divider { border-top: 1px solid #eaeaea; margin-top: 16pt; margin-bottom: 16pt; }
+
+    /* ── Section Titles ── */
+    .section-title { font-size: 13pt; font-weight: 700; color: #1a1a2e; margin-bottom: 12pt; }
 
     /* ── Match Groups ── */
-    .section-title { font-size: 12pt; font-weight: 700; color: #1a1a2e; margin-bottom: 10pt; }
-
-    .mg-icon {
-        font-size: 13pt; vertical-align: middle; line-height: 1;
-    }
-    .mg-label { font-size: 8.5pt; font-weight: 700; color: #333; }
-    .mg-pct { font-size: 8.5pt; font-weight: 400; color: #666; }
-    .mg-desc { font-size: 7pt; color: #aaa; margin-bottom: 8pt; margin-left: 20pt; }
+    .mg-label { font-size: 9pt; font-weight: 700; color: #333; }
+    .mg-pct { font-size: 9pt; font-weight: 400; color: #666; }
+    .mg-desc { font-size: 7.5pt; color: #aaa; margin-bottom: 3pt; }
 
     /* ── Top Sources Summary ── */
-    .ts-row { margin-bottom: 6pt; }
-    .ts-pct { font-size: 9pt; font-weight: 700; color: #333; }
-    .ts-icon { font-size: 11pt; vertical-align: middle; color: #888; }
-    .ts-label { font-size: 8.5pt; color: #555; }
+    .ts-pct { font-size: 9.5pt; font-weight: 700; color: #333; }
+    .ts-label { font-size: 9pt; color: #555; }
 
     /* ── Integrity Flags ── */
-    .flag-title { font-size: 10pt; font-weight: 700; color: #1a1a2e; margin-bottom: 3pt; }
-    .flag-count { font-size: 9pt; font-weight: 700; color: #333; margin-bottom: 8pt; }
+    .flag-title { font-size: 12pt; font-weight: 700; color: #1a1a2e; margin-bottom: 4pt; }
+    .flag-count { font-size: 9.5pt; font-weight: 700; color: #333; margin-bottom: 10pt; }
     .flag-info {
-        background: #edf5f9; border: 1px solid #d4e6ef;
-        padding: 10pt 14pt; font-size: 7.5pt; color: #3a6b82;
-        line-height: 1.55;
+        background: #edf5fa; border: 1px solid #d4e6ef;
+        padding: 12pt 16pt; font-size: 8pt; color: #3a6b82;
+        line-height: 1.6;
     }
     .flag-warn {
         background: #fef9e7; border: 1px solid #f5e6a3;
-        padding: 8pt 12pt; font-size: 7.5pt; color: #7a6317;
-        line-height: 1.55; margin-bottom: 4pt;
+        padding: 10pt 14pt; font-size: 8pt; color: #7a6317;
+        line-height: 1.55; margin-bottom: 5pt;
     }
 
     /* ── Sources Page ── */
     .src-num {
-        color: #fff; font-size: 7.5pt; font-weight: 700;
+        color: #fff; font-size: 8pt; font-weight: 700;
         padding: 3pt 6pt; text-align: center;
     }
     .src-badge {
         font-size: 7pt; font-weight: 700; color: #fff;
-        padding: 2pt 8pt 2pt 8pt;
+        padding: 2pt 10pt;
     }
     .badge-student { background: #e84393; }
     .badge-internet { background: #00b894; }
     .src-title { font-size: 9pt; font-weight: 600; color: #333; margin-top: 3pt; }
     .src-pct { font-size: 9pt; font-weight: 700; color: #333; text-align: right; }
-    .src-entry { border-bottom: 1px solid #f0f0f0; padding: 7pt 0 5pt 0; }
-    .src-desc { font-size: 7.5pt; color: #999; margin-bottom: 12pt; }
+    .src-entry { border-bottom: 1px solid #f2f2f2; padding: 8pt 0 6pt 0; }
+    .src-desc { font-size: 8pt; color: #999; margin-bottom: 14pt; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -124,14 +119,14 @@
                 {% if logo_base64 %}
                 <img src="{{ logo_base64 }}" style="height:22pt;" />
                 {% else %}
-                <span style="font-size:11pt; font-weight:700; color:#0d5c8f;">turnitin</span>
+                <span style="font-size:12pt; font-weight:700; color:#0d5c8f;">turnitin</span>
                 {% endif %}
             </td>
             <td style="text-align:center;">
-                <span class="hdr-page">Integrity Overview</span>
+                <span class="hdr-meta">Integrity Overview</span>
             </td>
             <td style="text-align:right;">
-                <span class="hdr-subid">Submission ID &nbsp; {{ document_id[:20] }}</span>
+                <span class="hdr-meta">Submission ID &nbsp; {{ document_id[:20] }}</span>
             </td>
         </tr></table>
     </div>
@@ -143,12 +138,11 @@
         <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
             <td>
                 {% if logo_base64 %}
-                <img src="{{ logo_base64 }}" style="height:14pt; opacity:0.6;" />
+                <img src="{{ logo_base64 }}" style="height:14pt; opacity:0.5;" />
                 {% endif %}
-                <span class="hdr-page">&nbsp; Integrity Overview</span>
             </td>
             <td style="text-align:right;">
-                <span class="hdr-subid">Submission ID &nbsp; {{ document_id[:20] }}</span>
+                <span class="hdr-meta">Submission ID &nbsp; {{ document_id[:20] }}</span>
             </td>
         </tr></table>
     </div>
@@ -209,73 +203,97 @@
             <div class="section-title">Match Groups</div>
 
             <!-- Not Cited or Quoted -->
-            <div style="margin-bottom: 10pt;">
-                <span class="mg-icon" style="color:#e74c3c;">&#9679;</span>
-                &nbsp;
-                <span class="mg-label">{{ not_cited_count }} Not Cited or Quoted</span>
-                &nbsp;
-                <span class="mg-pct">{{ not_cited_pct }}%</span>
-                <div class="mg-desc">Matches with neither in-text citation nor quotation marks</div>
-            </div>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:22pt; vertical-align:top;">
+                    <img src="{{ icon_not_cited }}" style="width:18pt; height:18pt;" />
+                </td>
+                <td style="vertical-align:top;">
+                    <span class="mg-label">{{ not_cited_count }} Not Cited or Quoted</span>
+                    &nbsp;
+                    <span class="mg-pct">{{ not_cited_pct }}%</span>
+                    <div class="mg-desc">Matches with neither in-text citation nor quotation marks</div>
+                </td>
+            </tr></table>
 
             <!-- Missing Quotations -->
-            <div style="margin-bottom: 10pt;">
-                <span class="mg-icon" style="color:#f39c12;">&#9679;</span>
-                &nbsp;
-                <span class="mg-label">{{ missing_quote_count }} Missing Quotations</span>
-                &nbsp;
-                <span class="mg-pct">{{ missing_quote_pct }}%</span>
-                <div class="mg-desc">Matches that are still very similar to source material</div>
-            </div>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:22pt; vertical-align:top;">
+                    <img src="{{ icon_missing_quote }}" style="width:18pt; height:18pt;" />
+                </td>
+                <td style="vertical-align:top;">
+                    <span class="mg-label">{{ missing_quote_count }} Missing Quotations</span>
+                    &nbsp;
+                    <span class="mg-pct">{{ missing_quote_pct }}%</span>
+                    <div class="mg-desc">Matches that are still very similar to source material</div>
+                </td>
+            </tr></table>
 
             <!-- Missing Citation -->
-            <div style="margin-bottom: 10pt;">
-                <span class="mg-icon" style="color:#f1c40f;">&#9679;</span>
-                &nbsp;
-                <span class="mg-label">{{ missing_citation_count }} Missing Citation</span>
-                &nbsp;
-                <span class="mg-pct">{{ missing_citation_pct }}%</span>
-                <div class="mg-desc">Matches that have quotation marks, but no in-text citation</div>
-            </div>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:22pt; vertical-align:top;">
+                    <img src="{{ icon_missing_citation }}" style="width:18pt; height:18pt;" />
+                </td>
+                <td style="vertical-align:top;">
+                    <span class="mg-label">{{ missing_citation_count }} Missing Citation</span>
+                    &nbsp;
+                    <span class="mg-pct">{{ missing_citation_pct }}%</span>
+                    <div class="mg-desc">Matches that have quotation marks, but no in-text citation</div>
+                </td>
+            </tr></table>
 
             <!-- Cited and Quoted -->
-            <div style="margin-bottom: 10pt;">
-                <span class="mg-icon" style="color:#00b894;">&#9679;</span>
-                &nbsp;
-                <span class="mg-label">{{ cited_quoted_count }} Cited and Quoted</span>
-                &nbsp;
-                <span class="mg-pct">{{ cited_quoted_pct }}%</span>
-                <div class="mg-desc">Matches with in-text citation present, but no quotation marks</div>
-            </div>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:22pt; vertical-align:top;">
+                    <img src="{{ icon_cited_quoted }}" style="width:18pt; height:18pt;" />
+                </td>
+                <td style="vertical-align:top;">
+                    <span class="mg-label">{{ cited_quoted_count }} Cited and Quoted</span>
+                    &nbsp;
+                    <span class="mg-pct">{{ cited_quoted_pct }}%</span>
+                    <div class="mg-desc">Matches with in-text citation present, but no quotation marks</div>
+                </td>
+            </tr></table>
         </td>
 
         <!-- RIGHT: Top Sources -->
-        <td style="width:48%; vertical-align:top; padding-left:28pt;">
+        <td style="width:48%; vertical-align:top; padding-left:30pt;">
             <div class="section-title">Top Sources</div>
 
-            <div class="ts-row">
-                <span class="ts-pct">{{ internet_pct }}%</span>
-                &nbsp;&nbsp;
-                <span class="ts-icon">&#9678;</span>
-                &nbsp;
-                <span class="ts-label">Internet sources</span>
-            </div>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:30pt;">
+                    <span class="ts-pct">{{ internet_pct }}%</span>
+                </td>
+                <td style="width:24pt; text-align:center;">
+                    <img src="{{ icon_internet }}" style="width:14pt; height:14pt;" />
+                </td>
+                <td>
+                    <span class="ts-label">Internet sources</span>
+                </td>
+            </tr></table>
 
-            <div class="ts-row">
-                <span class="ts-pct">{{ publication_pct }}%</span>
-                &nbsp;&nbsp;
-                <span class="ts-icon">&#9632;</span>
-                &nbsp;
-                <span class="ts-label">Publications</span>
-            </div>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:30pt;">
+                    <span class="ts-pct">{{ publication_pct }}%</span>
+                </td>
+                <td style="width:24pt; text-align:center;">
+                    <img src="{{ icon_publications }}" style="width:14pt; height:14pt;" />
+                </td>
+                <td>
+                    <span class="ts-label">Publications</span>
+                </td>
+            </tr></table>
 
-            <div class="ts-row">
-                <span class="ts-pct">{{ student_pct }}%</span>
-                &nbsp;&nbsp;
-                <span class="ts-icon">&#9650;</span>
-                &nbsp;
-                <span class="ts-label">Submitted works (Student Papers)</span>
-            </div>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+                <td style="width:30pt;">
+                    <span class="ts-pct">{{ student_pct }}%</span>
+                </td>
+                <td style="width:24pt; text-align:center;">
+                    <img src="{{ icon_student }}" style="width:14pt; height:14pt;" />
+                </td>
+                <td>
+                    <span class="ts-label">Submitted works (Student Papers)</span>
+                </td>
+            </tr></table>
         </td>
     </tr>
 </table>

@@ -40,6 +40,119 @@ def _get_logo_base64() -> str:
         logger.warning(f"Could not load logo from {logo_path}: {e}")
         return ""
 
+
+def _svg_to_data_uri(svg_str: str) -> str:
+    """Convert an SVG string to a base64 data URI for embedding in HTML."""
+    svg_bytes = svg_str.strip().encode("utf-8")
+    b64 = base64.b64encode(svg_bytes).decode("utf-8")
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+def _get_report_icons() -> dict:
+    """Generate all report icons as base64 SVG data URIs.
+
+    Match Group icons — colored circles with white symbols:
+      - Not Cited or Quoted (red) — document with exclamation
+      - Missing Quotations (orange) — speech bubbles
+      - Missing Citation (olive/tan) — text lines
+      - Cited and Quoted (teal) — checkmark
+
+    Top Sources icons — dark gray outline icons:
+      - Internet sources — globe with grid
+      - Publications — open book
+      - Student Papers — person bust
+
+    AI Detection icons — colored circles:
+      - AI-generated (green) — robot face
+      - AI-paraphrased (blue) — text edit
+    """
+    return {
+        # ── Match Group icons ──
+        "icon_not_cited": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#E05252"/>'
+            '<rect x="10" y="7" width="12" height="15" rx="1.5" fill="white"/>'
+            '<rect x="13" y="10" width="6" height="1.5" rx="0.5" fill="#E05252"/>'
+            '<rect x="13" y="13" width="6" height="1.5" rx="0.5" fill="#E05252"/>'
+            '<rect x="13" y="16" width="4" height="1.5" rx="0.5" fill="#E05252"/>'
+            '<circle cx="16" cy="25" r="1.2" fill="white"/>'
+            '</svg>'
+        ),
+        "icon_missing_quote": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#E8913A"/>'
+            '<path d="M10 11c0-1.1.9-2 2-2h3c1.1 0 2 .9 2 2v3c0 1.1-.9 2-2 2h-1l-1 2.5L12.5 16H12c-1.1 0-2-.9-2-2v-3z" fill="white"/>'
+            '<path d="M17 13c0-1.1.9-2 2-2h3c1.1 0 2 .9 2 2v3c0 1.1-.9 2-2 2h-1l-1 2.5L19.5 18H19c-1.1 0-2-.9-2-2v-3z" fill="white" opacity="0.8"/>'
+            '</svg>'
+        ),
+        "icon_missing_citation": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#B8A88A"/>'
+            '<rect x="8" y="10" width="16" height="2" rx="1" fill="white"/>'
+            '<rect x="8" y="14" width="16" height="2" rx="1" fill="white"/>'
+            '<rect x="8" y="18" width="12" height="2" rx="1" fill="white"/>'
+            '</svg>'
+        ),
+        "icon_cited_quoted": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#2ABFAB"/>'
+            '<path d="M10 16.5l4 4 8-8" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+            '</svg>'
+        ),
+
+        # ── Top Sources icons (gray outline) ──
+        "icon_internet": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">'
+            '<circle cx="12" cy="12" r="9.5" stroke="#555" stroke-width="1.5" fill="none"/>'
+            '<ellipse cx="12" cy="12" rx="4" ry="9.5" stroke="#555" stroke-width="1.2" fill="none"/>'
+            '<line x1="2.5" y1="9" x2="21.5" y2="9" stroke="#555" stroke-width="1.0"/>'
+            '<line x1="2.5" y1="15" x2="21.5" y2="15" stroke="#555" stroke-width="1.0"/>'
+            '</svg>'
+        ),
+        "icon_publications": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">'
+            '<rect x="3" y="4" width="18" height="16" rx="1.5" stroke="#555" stroke-width="1.5" fill="none"/>'
+            '<rect x="6" y="7" width="5" height="4" rx="0.5" fill="#555"/>'
+            '<line x1="13" y1="8" x2="18" y2="8" stroke="#555" stroke-width="1.2"/>'
+            '<line x1="13" y1="10.5" x2="17" y2="10.5" stroke="#555" stroke-width="1.2"/>'
+            '<line x1="6" y1="14" x2="18" y2="14" stroke="#555" stroke-width="1.0"/>'
+            '<line x1="6" y1="16.5" x2="16" y2="16.5" stroke="#555" stroke-width="1.0"/>'
+            '</svg>'
+        ),
+        "icon_student": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">'
+            '<circle cx="12" cy="8" r="4" stroke="#555" stroke-width="1.5" fill="none"/>'
+            '<path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#555" stroke-width="1.5" fill="none"/>'
+            '</svg>'
+        ),
+
+        # ── AI Detection icons ──
+        "icon_ai_gen": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#00B894"/>'
+            '<circle cx="16" cy="14" r="6" stroke="white" stroke-width="2" fill="none"/>'
+            '<circle cx="13.5" cy="12.5" r="1.2" fill="white"/>'
+            '<circle cx="18.5" cy="12.5" r="1.2" fill="white"/>'
+            '<rect x="13" y="16" width="6" height="2" rx="1" fill="white"/>'
+            '<line x1="16" y1="7" x2="16" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/>'
+            '<line x1="12" y1="22" x2="12" y2="25" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
+            '<line x1="20" y1="22" x2="20" y2="25" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
+            '</svg>'
+        ),
+        "icon_ai_para": _svg_to_data_uri(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+            '<circle cx="16" cy="16" r="16" fill="#0984E3"/>'
+            '<circle cx="16" cy="14" r="6" stroke="white" stroke-width="2" fill="none"/>'
+            '<circle cx="13.5" cy="12.5" r="1.2" fill="white"/>'
+            '<circle cx="18.5" cy="12.5" r="1.2" fill="white"/>'
+            '<rect x="13" y="16" width="6" height="2" rx="1" fill="white"/>'
+            '<line x1="16" y1="7" x2="16" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/>'
+            '<path d="M10 24l3-2 3 2 3-2 3 2" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+            '</svg>'
+        ),
+    }
+
+
 # Highlight colors (R, G, B) — values 0-1
 COLOR_PLAGIARISM = (0.96, 0.82, 0.66)  # Light brown #f5d0a9
 COLOR_AI = (0.75, 0.86, 0.99)          # Sky blue #bfdbfe
@@ -560,6 +673,7 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
         publication_pct=0,
         student_pct=student_pct,
         logo_base64=_get_logo_base64(),
+        **_get_report_icons(),
     )
 
     return _html_to_pdf_bytes(html)
@@ -629,6 +743,7 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
         ai_phrase_density=heuristics.get("ai_phrase_density"),
         highlighted_text=Markup(""),
         logo_base64=_get_logo_base64(),
+        **_get_report_icons(),
     )
 
     return _html_to_pdf_bytes(html)
