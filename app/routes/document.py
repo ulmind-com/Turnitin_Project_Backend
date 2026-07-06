@@ -318,6 +318,9 @@ async def get_document_report(
     return {
         "document_id": str(doc.id),
         "file_name": doc.original_file_name,
+        "file_type": doc.file_type,
+        "scanned_at": doc.scanned_at.isoformat() if doc.scanned_at else doc.created_at.isoformat(),
+        "metadata": doc.metadata,
         "ai_scan_status": doc.ai_scan_status.value if doc.ai_scan_status else None,
         "plagiarism_scan_status": (
             doc.plagiarism_scan_status.value if doc.plagiarism_scan_status else None
