@@ -62,6 +62,147 @@ def _is_pdf_file(doc: ScanDocument) -> bool:
     return file_type == "pdf" or file_name.endswith(".pdf")
 
 
+def _is_docx_file(doc: ScanDocument) -> bool:
+    """Check if the original uploaded file is a DOCX."""
+    file_type = (doc.file_type or "").lower()
+    file_name = (doc.original_file_name or "").lower()
+    return file_type == "docx" or file_name.endswith(".docx")
+
+
+def _convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
+    """
+    Convert DOCX file bytes into PDF bytes.
+    
+    Uses python-docx to read the document structure and xhtml2pdf to
+    render it as a clean PDF. Preserves:
+      - Paragraphs and line breaks
+      - Headings (bold, larger font)
+      - Tables
+      - Basic text formatting (bold, italic, underline)
+    
+    This is an ISOLATED function — it does NOT touch any other code path.
+    """
+    from docx import Document as DocxDocument
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from html import escape
+
+    logger.info("Converting DOCX to PDF...")
+    doc = DocxDocument(io.BytesIO(docx_bytes))
+
+    html_parts = [
+        '<!DOCTYPE html>',
+        '<html><head><meta charset="utf-8"/>',
+        '<style>',
+        '  @page { size: A4; margin: 2cm; }',
+        '  body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.5; color: #222; }',
+        '  h1 { font-size: 18pt; font-weight: bold; margin: 12pt 0 6pt 0; }',
+        '  h2 { font-size: 15pt; font-weight: bold; margin: 10pt 0 5pt 0; }',
+        '  h3 { font-size: 13pt; font-weight: bold; margin: 8pt 0 4pt 0; }',
+        '  p { margin: 3pt 0; text-align: justify; }',
+        '  p.center { text-align: center; }',
+        '  p.right { text-align: right; }',
+        '  table { border-collapse: collapse; width: 100%; margin: 8pt 0; }',
+        '  td, th { border: 1px solid #999; padding: 4pt 6pt; font-size: 11pt; }',
+        '  th { background: #f0f0f0; font-weight: bold; }',
+        '</style>',
+        '</head><body>',
+    ]
+
+    # Process paragraphs
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            html_parts.append('<p>&nbsp;</p>')
+            continue
+
+        # Determine heading level
+        style_name = (para.style.name or "").lower()
+        if 'heading 1' in style_name:
+            tag = 'h1'
+        elif 'heading 2' in style_name:
+            tag = 'h2'
+        elif 'heading 3' in style_name or 'heading' in style_name:
+            tag = 'h3'
+        else:
+            tag = 'p'
+
+        # Alignment
+        align_class = ''
+        if para.alignment == WD_ALIGN_PARAGRAPH.CENTER:
+            align_class = ' class="center"'
+        elif para.alignment == WD_ALIGN_PARAGRAPH.RIGHT:
+            align_class = ' class="right"'
+
+        # Build run-level formatting
+        run_html = ''
+        for run in para.runs:
+            chunk = escape(run.text)
+            if not chunk:
+                continue
+            if run.bold:
+                chunk = f'<b>{chunk}</b>'
+            if run.italic:
+                chunk = f'<i>{chunk}</i>'
+            if run.underline:
+                chunk = f'<u>{chunk}</u>'
+            run_html += chunk
+
+        # Fallback if no runs extracted
+        if not run_html:
+            run_html = escape(text)
+
+        html_parts.append(f'<{tag}{align_class}>{run_html}</{tag}>')
+
+    # Process tables
+    for table in doc.tables:
+        html_parts.append('<table>')
+        for i, row in enumerate(table.rows):
+            html_parts.append('<tr>')
+            cell_tag = 'th' if i == 0 else 'td'
+            for cell in row.cells:
+                html_parts.append(f'<{cell_tag}>{escape(cell.text)}</{cell_tag}>')
+            html_parts.append('</tr>')
+        html_parts.append('</table>')
+
+    html_parts.append('</body></html>')
+    html_str = '\n'.join(html_parts)
+
+    pdf_bytes = _html_to_pdf_bytes(html_str)
+    logger.info(f"DOCX → PDF conversion complete: {len(pdf_bytes)} bytes")
+    return pdf_bytes
+
+
+def _get_original_as_pdf(doc: ScanDocument) -> bytes | None:
+    """
+    Download the original file and return it as PDF bytes.
+    - PDF files → returned as-is
+    - DOCX files → converted to PDF first
+    - Other files → returns None (unsupported)
+    
+    This is the SINGLE entry point for getting a usable PDF from the original.
+    """
+    if not doc.original_file_url:
+        return None
+
+    try:
+        raw_bytes = _download_original_file(doc.original_file_url)
+
+        if _is_pdf_file(doc):
+            logger.info("Original is PDF, using directly")
+            return raw_bytes
+        elif _is_docx_file(doc):
+            logger.info("Original is DOCX, converting to PDF")
+            return _convert_docx_to_pdf(raw_bytes)
+        else:
+            logger.warning(f"Unsupported file type: {doc.file_type}")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to get original as PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def _highlight_text_in_pdf(pdf_bytes: bytes, texts_to_highlight: list[str], color: tuple) -> bytes:
     """
     Open a PDF, search for each text snippet, and add colored highlight
@@ -483,7 +624,7 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
 def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
     """
     Build Turnitin-style Plagiarism Report:
-    1. Download original PDF from Cloudinary
+    1. Get original as PDF (auto-converts DOCX)
     2. Add light brown highlights on plagiarized text
     3. Generate summary pages
     4. Merge: summary + highlighted original
@@ -493,33 +634,24 @@ def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
     # Generate summary pages (always works)
     summary_pdf = _build_plagiarism_summary_pdf(doc)
 
-    if not doc.original_file_url:
-        logger.warning("No original file URL, returning summary only")
+    # Get original as PDF (handles PDF + DOCX)
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        logger.warning("Could not get original as PDF, returning summary only")
         return summary_pdf
 
-    try:
-        original_bytes = _download_original_file(doc.original_file_url)
+    # Apply highlights
+    plag_texts = _get_plagiarism_texts(doc)
+    if plag_texts:
+        original_pdf = _highlight_text_in_pdf(original_pdf, plag_texts, COLOR_PLAGIARISM)
 
-        # Only merge with original if it's a PDF
-        if _is_pdf_file(doc):
-            plag_texts = _get_plagiarism_texts(doc)
-            if plag_texts:
-                highlighted_pdf = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
-            else:
-                highlighted_pdf = original_bytes
-            return _merge_pdfs(summary_pdf, highlighted_pdf)
-        else:
-            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
-            return summary_pdf
-    except Exception as e:
-        logger.error(f"Failed to process original file: {e}, returning summary only")
-        return summary_pdf
+    return _merge_pdfs(summary_pdf, original_pdf)
 
 
 def build_ai_report_pdf(doc: ScanDocument) -> bytes:
     """
     Build Turnitin-style AI Detection Report:
-    1. Download original PDF from Cloudinary
+    1. Get original as PDF (auto-converts DOCX)
     2. Add sky blue highlights on AI-detected sentences
     3. Generate summary pages
     4. Merge: summary + highlighted original
@@ -529,26 +661,18 @@ def build_ai_report_pdf(doc: ScanDocument) -> bytes:
     # Generate summary pages (always works)
     summary_pdf = _build_ai_summary_pdf(doc)
 
-    if not doc.original_file_url:
-        logger.warning("No original file URL, returning summary only")
+    # Get original as PDF (handles PDF + DOCX)
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        logger.warning("Could not get original as PDF, returning summary only")
         return summary_pdf
 
-    try:
-        original_bytes = _download_original_file(doc.original_file_url)
+    # Apply highlights
+    ai_sentences = _get_ai_sentences(doc)
+    if ai_sentences:
+        original_pdf = _highlight_sentences_in_pdf(original_pdf, ai_sentences, COLOR_AI)
 
-        if _is_pdf_file(doc):
-            ai_sentences = _get_ai_sentences(doc)
-            if ai_sentences:
-                highlighted_pdf = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
-            else:
-                highlighted_pdf = original_bytes
-            return _merge_pdfs(summary_pdf, highlighted_pdf)
-        else:
-            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
-            return summary_pdf
-    except Exception as e:
-        logger.error(f"Failed to process original file: {e}, returning summary only")
-        return summary_pdf
+    return _merge_pdfs(summary_pdf, original_pdf)
 
 
 def build_report_pdf(doc: ScanDocument) -> bytes:
@@ -570,28 +694,20 @@ def build_report_pdf(doc: ScanDocument) -> bytes:
     combined_summary.close()
     plag_doc.close()
 
-    if not doc.original_file_url:
-        logger.warning("No original file URL, returning summary only")
+    # Get original as PDF (handles PDF + DOCX)
+    original_pdf = _get_original_as_pdf(doc)
+    if not original_pdf:
+        logger.warning("Could not get original as PDF, returning summary only")
         return summary_bytes
 
-    try:
-        original_bytes = _download_original_file(doc.original_file_url)
+    # Apply plagiarism highlights first (light brown)
+    plag_texts = _get_plagiarism_texts(doc)
+    if plag_texts:
+        original_pdf = _highlight_text_in_pdf(original_pdf, plag_texts, COLOR_PLAGIARISM)
 
-        if _is_pdf_file(doc):
-            # Apply plagiarism highlights first (light brown)
-            plag_texts = _get_plagiarism_texts(doc)
-            if plag_texts:
-                original_bytes = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
+    # Then apply AI highlights (sky blue)
+    ai_sentences = _get_ai_sentences(doc)
+    if ai_sentences:
+        original_pdf = _highlight_sentences_in_pdf(original_pdf, ai_sentences, COLOR_AI)
 
-            # Then apply AI highlights (sky blue)
-            ai_sentences = _get_ai_sentences(doc)
-            if ai_sentences:
-                original_bytes = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
-
-            return _merge_pdfs(summary_bytes, original_bytes)
-        else:
-            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
-            return summary_bytes
-    except Exception as e:
-        logger.error(f"Failed to process original file: {e}, returning summary only")
-        return summary_bytes
+    return _merge_pdfs(summary_bytes, original_pdf)
