@@ -1,6 +1,7 @@
 import io
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+from fastapi.responses import Response
 from beanie import PydanticObjectId
 
 from app.models.user import User
