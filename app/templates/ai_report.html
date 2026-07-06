@@ -5,105 +5,157 @@
 <style>
     @page {
         size: a4 portrait;
-        margin: 2cm 2.2cm 2cm 2.2cm;
+        margin: 2cm 2cm 2.2cm 2cm;
         @frame header_frame {
             -pdf-frame-content: headerContent;
-            left: 50pt;
-            width: 495pt;
-            top: 20pt;
-            height: 28pt;
+            left: 42pt;
+            width: 510pt;
+            top: 16pt;
+            height: 36pt;
         }
         @frame footer_frame {
             -pdf-frame-content: footerContent;
-            left: 50pt;
-            width: 495pt;
-            bottom: 14pt;
-            height: 28pt;
+            left: 42pt;
+            width: 510pt;
+            bottom: 10pt;
+            height: 30pt;
         }
     }
+
     body {
         font-family: Helvetica, Arial, sans-serif;
-        color: #222;
+        color: #2d3436;
         font-size: 9pt;
-        line-height: 1.35;
+        line-height: 1.45;
     }
 
-    .bar-logo { font-size: 10pt; font-weight: 700; color: #1a1a2e; }
-    .bar-logo b { color: #e63946; }
-    .bar-sub { font-size: 7pt; color: #888; }
-    .bar-line { border-bottom: 1px solid #ddd; padding-bottom: 6pt; }
-    .bar-line-top { border-top: 1px solid #ddd; padding-top: 6pt; }
+    /* ── Header / Footer ── */
+    .hdr-line { border-bottom: 1px solid #e0e0e0; padding-bottom: 5pt; }
+    .ftr-line { border-top: 1px solid #e0e0e0; padding-top: 5pt; }
+    .hdr-page { font-size: 7.5pt; color: #999; }
+    .hdr-subid { font-size: 7.5pt; color: #999; }
 
-    .cover-title { font-size: 20pt; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
-    .cover-sub { font-size: 13pt; font-weight: 600; color: #444; margin-top: 4pt; }
-    .sect-head { font-size: 10pt; font-weight: 700; color: #1a1a2e; border-top: 1px solid #ddd; padding-top: 10pt; margin-top: 14pt; }
-    .lbl { font-size: 7pt; color: #999; margin-top: 6pt; }
-    .val { font-size: 8.5pt; color: #222; font-weight: 600; }
-    .stat-cell { border: 1px solid #e0e0e0; padding: 4pt 10pt; font-size: 8.5pt; color: #333; text-align: right; }
-    .stat-cell b { font-size: 9pt; }
+    /* ── Cover Page ── */
+    .cover-title {
+        font-size: 22pt; font-weight: 700; color: #1a1a2e;
+        line-height: 1.2; margin-bottom: 4pt;
+    }
+    .cover-sub {
+        font-size: 12pt; font-weight: 400; color: #666;
+        margin-bottom: 20pt;
+    }
+    .detail-label { font-size: 7pt; color: #aaa; text-transform: uppercase; letter-spacing: 0.3pt; margin-top: 7pt; }
+    .detail-value { font-size: 9pt; color: #333; font-weight: 600; }
+    .stat-box {
+        border: 1px solid #e8e8e8; padding: 5pt 12pt;
+        font-size: 8.5pt; color: #444; text-align: right;
+    }
+    .stat-box b { font-size: 9.5pt; color: #222; }
 
-    .big-score { font-size: 22pt; font-weight: 700; color: #1a1a2e; line-height: 1.1; }
-    .score-desc { font-size: 7.5pt; color: #666; margin-top: 2pt; margin-bottom: 6pt; }
+    /* ── AI Overview ── */
+    .big-score {
+        font-size: 26pt; font-weight: 700; color: #1a1a2e;
+        line-height: 1.15; margin-bottom: 2pt;
+    }
+    .score-desc {
+        font-size: 8pt; color: #777; margin-bottom: 14pt;
+    }
 
-    .caution-panel { background: #e8f4f8; border: 1px solid #c5dfe8; padding: 8pt 10pt; }
-    .caution-warn { background: #fff8e1; border-color: #ffe082; }
-    .caution-danger { background: #fce4ec; border-color: #f8bbd0; }
-    .caution-head { font-size: 8.5pt; font-weight: 700; color: #333; margin-bottom: 3pt; }
-    .caution-body { font-size: 7pt; color: #555; line-height: 1.45; }
+    .divider { border-top: 1px solid #e8e8e8; margin-top: 14pt; margin-bottom: 14pt; }
+    .section-title { font-size: 12pt; font-weight: 700; color: #1a1a2e; margin-bottom: 10pt; }
 
-    .metric-dot { font-size: 12pt; vertical-align: middle; margin-right: 4pt; }
-    .metric-label { font-size: 8pt; font-weight: 700; color: #222; vertical-align: middle; }
-    .metric-sub { font-size: 8pt; color: #222; vertical-align: middle; }
-    .metric-desc { font-size: 7pt; color: #888; margin-left: 18pt; margin-bottom: 6pt; }
+    /* ── Caution Panel ── */
+    .caution-panel {
+        background: #edf5f9; border: 1px solid #d4e6ef;
+        padding: 10pt 14pt;
+    }
+    .caution-warn {
+        background: #fef9e7; border-color: #f5e6a3;
+    }
+    .caution-danger {
+        background: #fce4ec; border-color: #f8bbd0;
+    }
+    .caution-head { font-size: 9pt; font-weight: 700; color: #333; margin-bottom: 4pt; }
+    .caution-body { font-size: 7.5pt; color: #555; line-height: 1.55; }
 
-    .sep { border-top: 1px solid #e0e0e0; margin-top: 14pt; padding-top: 10pt; }
-    .disc-head { font-size: 8.5pt; font-weight: 700; color: #222; margin-bottom: 3pt; }
-    .disc-text { font-size: 7pt; color: #555; line-height: 1.5; }
+    /* ── AI Breakdown ── */
+    .ai-icon { font-size: 13pt; vertical-align: middle; }
+    .ai-label { font-size: 9pt; font-weight: 700; color: #333; }
+    .ai-sublabel { font-size: 8.5pt; color: #555; }
+    .ai-desc { font-size: 7pt; color: #aaa; margin-left: 20pt; margin-bottom: 10pt; }
+
+    /* ── Disclaimer ── */
+    .disc-head { font-size: 10pt; font-weight: 700; color: #1a1a2e; margin-bottom: 4pt; }
+    .disc-text { font-size: 7.5pt; color: #666; line-height: 1.6; }
 </style>
 </head>
 <body>
 
+<!-- ═══════════ HEADER ═══════════ -->
 <div id="headerContent">
-    <div class="bar-line">
+    <div class="hdr-line">
         <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-            <td><span class="bar-logo">NAK<b>Detect</b></span> <span class="bar-sub">AI Writing Report</span></td>
-            <td style="text-align:right;"><span class="bar-sub">Submission ID &nbsp; {{ document_id }}</span></td>
-        </tr></table>
-    </div>
-</div>
-<div id="footerContent">
-    <div class="bar-line-top">
-        <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
-            <td><span class="bar-logo" style="font-size:8pt;">NAK<b>Detect</b></span> <span class="bar-sub">AI Writing Report</span></td>
-            <td style="text-align:right;"><span class="bar-sub">Submission ID &nbsp; {{ document_id }}</span></td>
+            <td style="width:130pt;">
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" style="height:22pt;" />
+                {% else %}
+                <span style="font-size:11pt; font-weight:700; color:#0d5c8f;">turnitin</span>
+                {% endif %}
+            </td>
+            <td style="text-align:center;">
+                <span class="hdr-page">AI Writing Report</span>
+            </td>
+            <td style="text-align:right;">
+                <span class="hdr-subid">Submission ID &nbsp; {{ document_id[:20] }}</span>
+            </td>
         </tr></table>
     </div>
 </div>
 
-<!-- ══════════ COVER PAGE ══════════ -->
-<div style="margin-top: 5.5cm;">
+<!-- ═══════════ FOOTER ═══════════ -->
+<div id="footerContent">
+    <div class="ftr-line">
+        <table style="width:100%;" cellpadding="0" cellspacing="0"><tr>
+            <td>
+                {% if logo_base64 %}
+                <img src="{{ logo_base64 }}" style="height:14pt; opacity:0.6;" />
+                {% endif %}
+                <span class="hdr-page">&nbsp; AI Writing Report</span>
+            </td>
+            <td style="text-align:right;">
+                <span class="hdr-subid">Submission ID &nbsp; {{ document_id[:20] }}</span>
+            </td>
+        </tr></table>
+    </div>
+</div>
+
+<!-- ═══════════ COVER PAGE ═══════════ -->
+<div style="margin-top: 5cm;">
     <div class="cover-title">{{ file_name }}</div>
     <div class="cover-sub">AI Writing Detection Report</div>
 </div>
 
-<div class="sect-head">Document Details</div>
+<div style="border-top: 1px solid #e0e0e0; padding-top: 12pt; margin-top: 10pt;">
+    <div style="font-size: 11pt; font-weight: 700; color: #1a1a2e; margin-bottom: 8pt;">Document Details</div>
+</div>
+
 <table style="width:100%;" cellpadding="0" cellspacing="0">
     <tr>
         <td style="width:55%; vertical-align:top;">
-            <div class="lbl">Submission ID</div>
-            <div class="val">{{ document_id }}</div>
-            <div class="lbl">Submission Date</div>
-            <div class="val">{{ scanned_at }}</div>
-            <div class="lbl">File Name</div>
-            <div class="val">{{ file_name }}</div>
-            <div class="lbl">File Type</div>
-            <div class="val">{{ file_type }}</div>
+            <div class="detail-label">Submission ID</div>
+            <div class="detail-value">{{ document_id }}</div>
+            <div class="detail-label">Submission Date</div>
+            <div class="detail-value">{{ scanned_at }}</div>
+            <div class="detail-label">File Name</div>
+            <div class="detail-value">{{ file_name }}</div>
+            <div class="detail-label">File Type</div>
+            <div class="detail-value">{{ file_type }}</div>
         </td>
         <td style="width:45%; vertical-align:top; padding-left:20pt;">
-            <table cellpadding="0" cellspacing="0" style="width:100%; margin-top:6pt;">
-                <tr><td class="stat-cell"><b>{{ page_count }}</b> Pages</td></tr>
-                <tr><td class="stat-cell"><b>{{ word_count }}</b> Words</td></tr>
-                <tr><td class="stat-cell"><b>{{ char_count }}</b> Characters</td></tr>
+            <table cellpadding="0" cellspacing="0" style="width:100%; margin-top:8pt;">
+                <tr><td class="stat-box"><b>{{ page_count }}</b> &nbsp;Pages</td></tr>
+                <tr><td class="stat-box"><b>{{ word_count }}</b> &nbsp;Words</td></tr>
+                <tr><td class="stat-box"><b>{{ char_count }}</b> &nbsp;Characters</td></tr>
             </table>
         </td>
     </tr>
@@ -111,14 +163,14 @@
 
 <pdf:nextpage />
 
-<!-- ══════════ AI WRITING OVERVIEW ══════════ -->
+<!-- ═══════════ AI WRITING OVERVIEW ═══════════ -->
 <table style="width:100%;" cellpadding="0" cellspacing="0">
     <tr>
         <td style="width:52%; vertical-align:top;">
             <div class="big-score">{{ overall_ai_score }}% detected as AI</div>
             <div class="score-desc">The percentage indicates the combined amount of likely AI-generated text as well as likely AI-generated text that was also likely AI-paraphrased.</div>
         </td>
-        <td style="width:48%; vertical-align:top; padding-left:16pt;">
+        <td style="width:48%; vertical-align:top; padding-left:18pt;">
             {% if overall_ai_score >= 76 %}
             <div class="caution-panel caution-danger">
             {% elif overall_ai_score >= 36 %}
@@ -127,30 +179,74 @@
             <div class="caution-panel">
             {% endif %}
                 <div class="caution-head">{{ caution_level }}</div>
-                <div class="caution-body">It is essential to understand the limitations of AI detection before making decisions about a student's work. We encourage you to learn more about NAKDetect's AI detection capabilities before using the tool.</div>
+                <div class="caution-body">It is essential to understand the limitations of AI detection before making decisions about a student's work. We encourage you to learn more about our AI detection capabilities before using the tool.</div>
             </div>
         </td>
     </tr>
 </table>
 
-<div style="margin-top: 20pt;">
-    <div>
-        <span class="metric-dot" style="color:#4caf50;">&#9679;</span>
-        <span class="metric-label">{{ ai_generated_pct }}</span>
-        <span class="metric-sub"> AI-generated only {{ ai_generated_pct }}%</span>
-        <div class="metric-desc">Likely AI-generated text from a large-language model.</div>
+<!-- ── AI Breakdown ── -->
+<div style="margin-top: 22pt;">
+    <div style="margin-bottom: 12pt;">
+        <span class="ai-icon" style="color:#00b894;">&#9679;</span>
+        &nbsp;
+        <span class="ai-label">{{ ai_generated_pct }}%</span>
+        &nbsp;
+        <span class="ai-sublabel">AI-generated only</span>
+        <div class="ai-desc">Likely AI-generated text from a large-language model.</div>
     </div>
-    <div>
-        <span class="metric-dot" style="color:#42a5f5;">&#9679;</span>
-        <span class="metric-label">{{ ai_paraphrased_pct }}</span>
-        <span class="metric-sub"> AI-generated text that was AI-paraphrased {{ ai_paraphrased_pct }}%</span>
-        <div class="metric-desc">Likely AI-generated text that was likely revised using an AI-paraphrase tool or word spinner.</div>
+    <div style="margin-bottom: 12pt;">
+        <span class="ai-icon" style="color:#0984e3;">&#9679;</span>
+        &nbsp;
+        <span class="ai-label">{{ ai_paraphrased_pct }}%</span>
+        &nbsp;
+        <span class="ai-sublabel">AI-generated text that was AI-paraphrased</span>
+        <div class="ai-desc">Likely AI-generated text that was likely revised using an AI-paraphrase tool or word spinner.</div>
     </div>
 </div>
 
-<div class="sep">
-    <div class="disc-head">Disclaimer</div>
-    <div class="disc-text">Our AI writing assessment is designed to help educators identify text that might be prepared by a generative AI tool. Our AI writing assessment may not always be accurate (i.e., our AI models may produce either false positive results or false negative results), so it should not be used as the sole basis for adverse actions against a student. It takes further scrutiny and human judgment in conjunction with an organization's application of its specific academic policies to determine whether any academic misconduct has occurred.</div>
+<!-- ── Heuristics Summary ── -->
+{% if burstiness is not none %}
+<div class="divider"></div>
+<div class="section-title">Statistical Analysis</div>
+<table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0">
+    <tr>
+        <td style="width:50%; vertical-align:top;">
+            <table cellpadding="0" cellspacing="0" style="width:95%;">
+                <tr>
+                    <td class="stat-box" style="text-align:left;"><b>Burstiness</b></td>
+                    <td class="stat-box" style="width:60pt;">{{ "%.3f"|format(burstiness) }}</td>
+                </tr>
+                <tr>
+                    <td class="stat-box" style="text-align:left;"><b>Vocabulary Diversity (TTR)</b></td>
+                    <td class="stat-box" style="width:60pt;">{{ "%.3f"|format(type_token_ratio) }}</td>
+                </tr>
+            </table>
+        </td>
+        <td style="width:50%; vertical-align:top; padding-left:10pt;">
+            <table cellpadding="0" cellspacing="0" style="width:95%;">
+                <tr>
+                    <td class="stat-box" style="text-align:left;"><b>Avg Sentence Length</b></td>
+                    <td class="stat-box" style="width:60pt;">{{ "%.1f"|format(avg_sentence_length) }} words</td>
+                </tr>
+                <tr>
+                    <td class="stat-box" style="text-align:left;"><b>AI Phrase Density</b></td>
+                    <td class="stat-box" style="width:60pt;">{{ "%.3f"|format(ai_phrase_density) }} /100w</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<div style="font-size:7pt; color:#aaa; margin-top:4pt;">
+    Human baseline: Burstiness &ge; 0.50 &nbsp;|&nbsp; TTR &ge; 0.60 &nbsp;|&nbsp; AI-generated text typically: Burstiness &lt; 0.30, TTR &lt; 0.50
+</div>
+{% endif %}
+
+<!-- ── Disclaimer ── -->
+<div class="divider"></div>
+<div class="disc-head">Disclaimer</div>
+<div class="disc-text">
+    Our AI writing assessment is designed to help educators identify text that might be prepared by a generative AI tool. Our AI writing assessment may not always be accurate (i.e., it may produce either false positive or false negative results), so it should not be used as the sole basis for adverse actions against a student. It takes further scrutiny and human judgment in conjunction with an organization's application of its specific academic policies to determine whether any academic misconduct has occurred.
 </div>
 
 </body>

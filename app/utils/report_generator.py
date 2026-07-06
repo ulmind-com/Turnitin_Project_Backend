@@ -13,6 +13,7 @@ Produces three report types:
 import io
 import os
 import re
+import base64
 import logging
 import fitz  # PyMuPDF
 import httpx
@@ -24,6 +25,20 @@ from app.models.document import ScanDocument
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+
+
+def _get_logo_base64() -> str:
+    """Load the brand logo and return as base64 data URI for HTML embedding."""
+    logo_path = os.path.join(ASSETS_DIR, "image.png")
+    try:
+        with open(logo_path, "rb") as f:
+            logo_bytes = f.read()
+        b64 = base64.b64encode(logo_bytes).decode("utf-8")
+        return f"data:image/png;base64,{b64}"
+    except Exception as e:
+        logger.warning(f"Could not load logo from {logo_path}: {e}")
+        return ""
 
 # Highlight colors (R, G, B) — values 0-1
 COLOR_PLAGIARISM = (0.96, 0.82, 0.66)  # Light brown #f5d0a9
@@ -544,6 +559,7 @@ def _build_plagiarism_summary_pdf(doc: ScanDocument) -> bytes:
         internet_pct=internet_pct,
         publication_pct=0,
         student_pct=student_pct,
+        logo_base64=_get_logo_base64(),
     )
 
     return _html_to_pdf_bytes(html)
@@ -612,6 +628,7 @@ def _build_ai_summary_pdf(doc: ScanDocument) -> bytes:
         avg_sentence_length=heuristics.get("avg_sentence_length"),
         ai_phrase_density=heuristics.get("ai_phrase_density"),
         highlighted_text=Markup(""),
+        logo_base64=_get_logo_base64(),
     )
 
     return _html_to_pdf_bytes(html)
