@@ -316,6 +316,88 @@ async def get_document_report(
             detail="Neither analysis has completed yet.",
         )
 
+    # --- Compute Plagiarism Breakdown ---
+    plag_breakdown = None
+    if doc.plagiarism_result:
+        plag_score = doc.plagiarism_result.plagiarism_score
+        chunks = doc.plagiarism_result.chunks
+        not_cited_chunks, missing_quote_chunks, missing_citation_chunks, cited_quoted_chunks = [], [], [], []
+
+        for chunk in chunks:
+            if chunk.plagiarism_score < 10:
+                continue
+            match_type = "not_cited"
+            for src_info in chunk.sources:
+                if isinstance(src_info, dict) and src_info.get("match_type"):
+                    match_type = src_info["match_type"]
+                    break
+
+            if match_type == "missing_quote": missing_quote_chunks.append(chunk)
+            elif match_type == "missing_citation": missing_citation_chunks.append(chunk)
+            elif match_type == "cited_quoted": cited_quoted_chunks.append(chunk)
+            elif match_type != "original": not_cited_chunks.append(chunk)
+
+        total_flagged = len(not_cited_chunks) + len(missing_quote_chunks) + len(missing_citation_chunks) + len(cited_quoted_chunks)
+
+        if total_flagged > 0 and plag_score > 0:
+            not_cited_pct = round((len(not_cited_chunks) / total_flagged) * plag_score, 1)
+            missing_quote_pct = round((len(missing_quote_chunks) / total_flagged) * plag_score, 1)
+            missing_citation_pct = round((len(missing_citation_chunks) / total_flagged) * plag_score, 1)
+            cited_quoted_pct = round((len(cited_quoted_chunks) / total_flagged) * plag_score, 1)
+        else:
+            not_cited_pct, missing_quote_pct, missing_citation_pct, cited_quoted_pct = round(plag_score, 1), 0, 0, 0
+
+        # Source breakdown
+        internet_score = 0.0
+        student_score = 0.0
+        if doc.plagiarism_result.matched_sources:
+            for src in doc.plagiarism_result.matched_sources:
+                if src.url == "Submitted Work (Student Paper)": student_score += src.similarity_score
+                else: internet_score += src.similarity_score
+        total_sim = internet_score + student_score
+        internet_pct = round((internet_score / total_sim) * plag_score, 1) if total_sim > 0 else 0
+        student_pct = round((student_score / total_sim) * plag_score, 1) if total_sim > 0 else 0
+
+        # Matched Sources mapped
+        matched_sources = []
+        if doc.plagiarism_result.matched_sources:
+            for src in doc.plagiarism_result.matched_sources:
+                if src.similarity_score < 5: continue
+                source_type = "student" if src.url == "Submitted Work (Student Paper)" else "internet"
+                total_src_sim = sum(s.similarity_score for s in doc.plagiarism_result.matched_sources if s.similarity_score >= 5)
+                sim_pct = round((src.similarity_score / total_src_sim) * plag_score, 1) if total_src_sim > 0 else 0
+                matched_sources.append({
+                    "title": src.title or src.url,
+                    "url": src.url,
+                    "similarity_pct": max(sim_pct, 1) if sim_pct > 0 else 0,
+                    "source_type": source_type,
+                    "raw_score": src.similarity_score
+                })
+            matched_sources.sort(key=lambda x: x["raw_score"], reverse=True)
+            matched_sources = matched_sources[:15]
+
+        # Filtered sections
+        filtered_sections = []
+        text_lower = (doc.extracted_text or "").lower()
+        if "bibliography" in text_lower or "references" in text_lower: filtered_sections.append("Bibliography")
+        if "abstract" in text_lower: filtered_sections.append("Abstract")
+
+        plag_breakdown = {
+            "match_groups": {
+                "not_cited": {"count": len(not_cited_chunks), "pct": not_cited_pct},
+                "missing_quote": {"count": len(missing_quote_chunks), "pct": missing_quote_pct},
+                "missing_citation": {"count": len(missing_citation_chunks), "pct": missing_citation_pct},
+                "cited_quoted": {"count": len(cited_quoted_chunks), "pct": cited_quoted_pct}
+            },
+            "sources_breakdown": {
+                "internet_pct": internet_pct,
+                "publication_pct": 0,
+                "student_pct": student_pct
+            },
+            "filtered_sections": filtered_sections,
+            "matched_sources": matched_sources
+        }
+
     return {
         "document_id": str(doc.id),
         "file_name": doc.original_file_name,
@@ -333,17 +415,15 @@ async def get_document_report(
         "ai_summary": doc.ai_result.summary if doc.ai_result else None,
         "plagiarism_summary": doc.plagiarism_result.summary if doc.plagiarism_result else None,
         "ai_heuristics": doc.ai_result.heuristics if doc.ai_result else None,
+        "plagiarism_breakdown": plag_breakdown,
+        "integrity_flags": doc.integrity_flags or [],
+        "integrity_flag_count": len(doc.integrity_flags) if doc.integrity_flags else 0,
         "extracted_text": doc.extracted_text,
         "chunks": (
             [c.model_dump() for c in doc.plagiarism_result.chunks]
             if doc.plagiarism_result
             else []
-        ),
-        "matched_sources": (
-            [s.model_dump() for s in doc.plagiarism_result.matched_sources]
-            if doc.plagiarism_result
-            else []
-        ),
+        )
     }
 
 
