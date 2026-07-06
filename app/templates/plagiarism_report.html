@@ -53,8 +53,8 @@
 
     /* ── Similarity Overview ── */
     .big-score {
-        font-size: 28pt; font-weight: 700; color: #1a1a2e;
-        line-height: 1.15; margin-bottom: 3pt;
+        font-size: 26pt; font-weight: 700; color: #1a1a2e;
+        line-height: 1.15; margin-bottom: 2pt;
     }
     .score-desc {
         font-size: 8.5pt; color: #888; margin-bottom: 16pt; line-height: 1.5;
@@ -72,7 +72,7 @@
     /* ── Match Groups ── */
     .mg-label { font-size: 9pt; font-weight: 700; color: #333; }
     .mg-pct { font-size: 9pt; font-weight: 400; color: #666; }
-    .mg-desc { font-size: 7.5pt; color: #aaa; margin-bottom: 3pt; }
+    .mg-desc { font-size: 7.5pt; color: #aaa; margin-top: 1pt; margin-bottom: 2pt; }
 
     /* ── Top Sources Summary ── */
     .ts-pct { font-size: 9.5pt; font-weight: 700; color: #333; }
@@ -107,6 +107,11 @@
     .src-pct { font-size: 9pt; font-weight: 700; color: #333; text-align: right; }
     .src-entry { border-bottom: 1px solid #f2f2f2; padding: 8pt 0 6pt 0; }
     .src-desc { font-size: 8pt; color: #999; margin-bottom: 14pt; line-height: 1.5; }
+
+    /* Percentage color coding */
+    .pct-high { color: #e05252; }
+    .pct-med { color: #e8913a; }
+    .pct-low { color: #333; }
 </style>
 </head>
 <body>
@@ -203,7 +208,7 @@
             <div class="section-title">Match Groups</div>
 
             <!-- Not Cited or Quoted -->
-            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:22pt; vertical-align:top;">
                     <img src="{{ icon_not_cited }}" style="width:18pt; height:18pt;" />
                 </td>
@@ -216,7 +221,7 @@
             </tr></table>
 
             <!-- Missing Quotations -->
-            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:22pt; vertical-align:top;">
                     <img src="{{ icon_missing_quote }}" style="width:18pt; height:18pt;" />
                 </td>
@@ -229,7 +234,7 @@
             </tr></table>
 
             <!-- Missing Citation -->
-            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:22pt; vertical-align:top;">
                     <img src="{{ icon_missing_citation }}" style="width:18pt; height:18pt;" />
                 </td>
@@ -242,7 +247,7 @@
             </tr></table>
 
             <!-- Cited and Quoted -->
-            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:22pt; vertical-align:top;">
                     <img src="{{ icon_cited_quoted }}" style="width:18pt; height:18pt;" />
                 </td>
@@ -259,7 +264,7 @@
         <td style="width:48%; vertical-align:top; padding-left:30pt;">
             <div class="section-title">Top Sources</div>
 
-            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:30pt;">
                     <span class="ts-pct">{{ internet_pct }}%</span>
                 </td>
@@ -271,7 +276,7 @@
                 </td>
             </tr></table>
 
-            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:30pt;">
                     <span class="ts-pct">{{ publication_pct }}%</span>
                 </td>
@@ -283,7 +288,7 @@
                 </td>
             </tr></table>
 
-            <table style="width:100%; margin-bottom:8pt;" cellpadding="0" cellspacing="0"><tr>
+            <table style="width:100%; margin-bottom:10pt;" cellpadding="0" cellspacing="0"><tr>
                 <td style="width:30pt;">
                     <span class="ts-pct">{{ student_pct }}%</span>
                 </td>
