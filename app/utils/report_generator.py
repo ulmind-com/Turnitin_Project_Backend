@@ -46,11 +46,20 @@ def _html_to_pdf_bytes(html: str) -> bytes:
     return pdf
 
 
-def _download_original_pdf(url: str) -> bytes:
+def _download_original_file(url: str) -> bytes:
     """Download the original file from Cloudinary."""
+    logger.info(f"Downloading original file from: {url[:80]}...")
     resp = httpx.get(url, follow_redirects=True, timeout=30)
     resp.raise_for_status()
+    logger.info(f"Downloaded {len(resp.content)} bytes")
     return resp.content
+
+
+def _is_pdf_file(doc: ScanDocument) -> bool:
+    """Check if the original uploaded file is a PDF."""
+    file_type = (doc.file_type or "").lower()
+    file_name = (doc.original_file_name or "").lower()
+    return file_type == "pdf" or file_name.endswith(".pdf")
 
 
 def _highlight_text_in_pdf(pdf_bytes: bytes, texts_to_highlight: list[str], color: tuple) -> bytes:
@@ -479,26 +488,32 @@ def build_plagiarism_report_pdf(doc: ScanDocument) -> bytes:
     3. Generate summary pages
     4. Merge: summary + highlighted original
     """
-    if not doc.original_file_url:
-        raise Exception("Original file not available. Please re-upload the document.")
+    logger.info(f"Building plagiarism report for {doc.original_file_name}")
 
-    # Download original
-    original_bytes = _download_original_pdf(doc.original_file_url)
-
-    # Get texts to highlight
-    plag_texts = _get_plagiarism_texts(doc)
-
-    # Highlight on original PDF
-    if plag_texts:
-        highlighted_pdf = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
-    else:
-        highlighted_pdf = original_bytes
-
-    # Generate summary pages
+    # Generate summary pages (always works)
     summary_pdf = _build_plagiarism_summary_pdf(doc)
 
-    # Merge: summary first, then highlighted original
-    return _merge_pdfs(summary_pdf, highlighted_pdf)
+    if not doc.original_file_url:
+        logger.warning("No original file URL, returning summary only")
+        return summary_pdf
+
+    try:
+        original_bytes = _download_original_file(doc.original_file_url)
+
+        # Only merge with original if it's a PDF
+        if _is_pdf_file(doc):
+            plag_texts = _get_plagiarism_texts(doc)
+            if plag_texts:
+                highlighted_pdf = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
+            else:
+                highlighted_pdf = original_bytes
+            return _merge_pdfs(summary_pdf, highlighted_pdf)
+        else:
+            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
+            return summary_pdf
+    except Exception as e:
+        logger.error(f"Failed to process original file: {e}, returning summary only")
+        return summary_pdf
 
 
 def build_ai_report_pdf(doc: ScanDocument) -> bytes:
@@ -509,26 +524,31 @@ def build_ai_report_pdf(doc: ScanDocument) -> bytes:
     3. Generate summary pages
     4. Merge: summary + highlighted original
     """
-    if not doc.original_file_url:
-        raise Exception("Original file not available. Please re-upload the document.")
+    logger.info(f"Building AI report for {doc.original_file_name}")
 
-    # Download original
-    original_bytes = _download_original_pdf(doc.original_file_url)
-
-    # Get sentences to highlight
-    ai_sentences = _get_ai_sentences(doc)
-
-    # Highlight on original PDF
-    if ai_sentences:
-        highlighted_pdf = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
-    else:
-        highlighted_pdf = original_bytes
-
-    # Generate summary pages
+    # Generate summary pages (always works)
     summary_pdf = _build_ai_summary_pdf(doc)
 
-    # Merge: summary first, then highlighted original
-    return _merge_pdfs(summary_pdf, highlighted_pdf)
+    if not doc.original_file_url:
+        logger.warning("No original file URL, returning summary only")
+        return summary_pdf
+
+    try:
+        original_bytes = _download_original_file(doc.original_file_url)
+
+        if _is_pdf_file(doc):
+            ai_sentences = _get_ai_sentences(doc)
+            if ai_sentences:
+                highlighted_pdf = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
+            else:
+                highlighted_pdf = original_bytes
+            return _merge_pdfs(summary_pdf, highlighted_pdf)
+        else:
+            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
+            return summary_pdf
+    except Exception as e:
+        logger.error(f"Failed to process original file: {e}, returning summary only")
+        return summary_pdf
 
 
 def build_report_pdf(doc: ScanDocument) -> bytes:
@@ -536,33 +556,42 @@ def build_report_pdf(doc: ScanDocument) -> bytes:
     Build combined report (both plagiarism + AI highlights on original PDF).
     Backward compatible endpoint.
     """
-    if not doc.original_file_url:
-        raise Exception("Original file not available. Please re-upload the document.")
+    logger.info(f"Building combined report for {doc.original_file_name}")
 
-    # Download original
-    original_bytes = _download_original_pdf(doc.original_file_url)
-
-    # Apply plagiarism highlights first (light brown)
-    plag_texts = _get_plagiarism_texts(doc)
-    if plag_texts:
-        original_bytes = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
-
-    # Then apply AI highlights (sky blue)
-    ai_sentences = _get_ai_sentences(doc)
-    if ai_sentences:
-        original_bytes = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
-
-    # Generate both summary pages and merge
+    # Generate both summary pages (always works)
     plag_summary = _build_plagiarism_summary_pdf(doc)
     ai_summary = _build_ai_summary_pdf(doc)
 
-    # Merge: AI summary + Plagiarism summary + highlighted original
+    # Merge AI + Plagiarism summaries
     combined_summary = fitz.open(stream=ai_summary, filetype="pdf")
     plag_doc = fitz.open(stream=plag_summary, filetype="pdf")
     combined_summary.insert_pdf(plag_doc)
-
     summary_bytes = combined_summary.tobytes()
     combined_summary.close()
     plag_doc.close()
 
-    return _merge_pdfs(summary_bytes, original_bytes)
+    if not doc.original_file_url:
+        logger.warning("No original file URL, returning summary only")
+        return summary_bytes
+
+    try:
+        original_bytes = _download_original_file(doc.original_file_url)
+
+        if _is_pdf_file(doc):
+            # Apply plagiarism highlights first (light brown)
+            plag_texts = _get_plagiarism_texts(doc)
+            if plag_texts:
+                original_bytes = _highlight_text_in_pdf(original_bytes, plag_texts, COLOR_PLAGIARISM)
+
+            # Then apply AI highlights (sky blue)
+            ai_sentences = _get_ai_sentences(doc)
+            if ai_sentences:
+                original_bytes = _highlight_sentences_in_pdf(original_bytes, ai_sentences, COLOR_AI)
+
+            return _merge_pdfs(summary_bytes, original_bytes)
+        else:
+            logger.info(f"Non-PDF file ({doc.file_type}), returning summary only")
+            return summary_bytes
+    except Exception as e:
+        logger.error(f"Failed to process original file: {e}, returning summary only")
+        return summary_bytes

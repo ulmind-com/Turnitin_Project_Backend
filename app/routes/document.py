@@ -356,7 +356,10 @@ async def download_document_report(
     Requires both AI and plagiarism checks to have completed.
     """
     doc = await ScanDocument.get(document_id)
-    if not doc or doc.user_id != str(current_user.id):
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    # Allow admin to download any report, regular users only their own
+    if doc.user_id != str(current_user.id) and current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
     if (
@@ -400,7 +403,9 @@ async def download_plagiarism_report(
 ):
     """Generate and download a Turnitin-style Plagiarism Similarity Report PDF."""
     doc = await ScanDocument.get(document_id)
-    if not doc or doc.user_id != str(current_user.id):
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    if doc.user_id != str(current_user.id) and current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
     if doc.plagiarism_scan_status != ScanStatus.COMPLETED:
@@ -439,7 +444,9 @@ async def download_ai_report(
 ):
     """Generate and download a Turnitin-style AI Writing Detection Report PDF."""
     doc = await ScanDocument.get(document_id)
-    if not doc or doc.user_id != str(current_user.id):
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    if doc.user_id != str(current_user.id) and current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
     if doc.ai_scan_status != ScanStatus.COMPLETED:
